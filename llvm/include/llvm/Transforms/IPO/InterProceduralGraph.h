@@ -16,32 +16,32 @@ namespace llvm {
 // Forward declaration of the pass
 class InterproceduralGraphPass;
 
-// Node structure to represent graph nodes
-struct Node {
-    std::string name;
-    // Additional properties can be added here
-};
+// // Node structure to represent graph nodes
+// struct Node {
+//     std::string name;
+//     // Additional properties can be added here
+// };
 
-// Edge structure to represent graph edges
-struct Edge {
-    std::string from;
-    std::string to;
-};
+// // Edge structure to represent graph edges
+// struct Edge {
+//     std::string from;
+//     std::string to;
+// };
 
-// InterproceduralGraph class to manage graph nodes and edges
-struct InterproceduralGraph {
-    std::map<std::string, Node> nodes;
-    std::vector<Edge> edges;
-    std::set<std::string> functionsWithIndirectCalls;
+// // InterproceduralGraph class to manage graph nodes and edges
+// struct InterproceduralGraph {
+//     std::map<std::string, Node> nodes;
+//     std::vector<Edge> edges;
+//     std::set<std::string> functionsWithIndirectCalls;
 
-    void addNode(Node node);
-    void addEdge(const std::string &from, const std::string &to);
-    void addIntraproceduralEdges(Function &F);
-    void addInterproceduralEdges(CallGraph &CG);
-    void addIndirectCallEdges();
-    std::set<std::string> getPossibleIndirectTargets(const std::string &FuncName);
-    void outputGraph();
-};
+//     void addNode(Node node);
+//     void addEdge(const std::string &from, const std::string &to);
+//     void addIntraproceduralEdges(Function &F);
+//     void addInterproceduralEdges(CallGraph &CG);
+//     void addIndirectCallEdges();
+//     std::set<std::string> getPossibleIndirectTargets(const std::string &FuncName);
+//     void outputGraph();
+// };
 
 // InterproceduralGraphPass class to define the pass
 class InterproceduralGraphPass : public PassInfoMixin<InterproceduralGraphPass> {

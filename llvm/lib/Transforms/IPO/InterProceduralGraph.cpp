@@ -11,8 +11,9 @@
 
 using namespace llvm;
 
-namespace {
 
+namespace {
+	// Data structures for the graph
 struct Node {
     std::string name;
     // Additional properties can be added here
@@ -90,29 +91,32 @@ struct InterproceduralGraph {
         }
     }
 };
+// Helper function that does the actual graph construction and output
+void InterproceduralGraphImpl(Module &M, CallGraph &CG) {
+    InterproceduralGraph IPG;
 
-class InterproceduralGraphPass : public PassInfoMixin<InterproceduralGraphPass> {
-public:
-     PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
-        InterproceduralGraph IPG;
-
-        CallGraph &CG = AM.getResult<CallGraphAnalysis>(M);
-
-        for (Function &F : M) {
-            Node functionNode;
-            functionNode.name = F.getName();
-            IPG.addNode(functionNode);
-            IPG.addIntraproceduralEdges(F);
-        }
-
-        IPG.addInterproceduralEdges(CG);
-        IPG.addIndirectCallEdges();
-        IPG.outputGraph();
-
-        return PreservedAnalyses::none();
+    for (Function &F : M) {
+        Node functionNode;
+        functionNode.name = F.getName();
+        IPG.addNode(functionNode);
+        IPG.addIntraproceduralEdges(F);
     }
 
-    //static bool isRequired() { return true; }
-};
+    IPG.addInterproceduralEdges(CG);
+    IPG.addIndirectCallEdges();
+    IPG.outputGraph();
+}
 
-} // end of anonymous namespace
+} // end anonymous namespace
+
+
+PreservedAnalyses InterproceduralGraphPass::run(Module &M, ModuleAnalysisManager &AM) {
+        // Get the CallGraph from the AnalysisManager
+        CallGraph &CG = AM.getResult<CallGraphAnalysis>(M);
+
+        // Call the helper function to build and output the graph
+        InterproceduralGraphImpl(M, CG);
+
+        // Indicate that no analyses are preserved after this pass runs
+        return PreservedAnalyses::none();
+    }
