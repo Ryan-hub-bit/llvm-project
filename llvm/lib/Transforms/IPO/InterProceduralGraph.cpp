@@ -236,7 +236,13 @@ void insertAddrListtoSection(Module &M, std::list<llvm::BlockAddress*> addrs) {
     	outs() << "Error: addr is not a pointer type.\n";
     	return ; // Or handle the error as appropriate
 	}
-        llvm::Constant *AddrConstant = llvm::ConstantExpr::getPtrToInt(addr, Int64Ty);
+        //llvm::Constant *AddrConstant = llvm::ConstantExpr::getPtrToInt(addr, Int64Ty);
+	Value *result = Builder.CreatePtrToInt(addr, Type::getInt64Ty(Context));
+              // llvm::errs() << "result:" << result << "\n";
+              Constant *resultConstant = dyn_cast<Constant>(result);
+              if (!resultConstant) {
+               llvm::errs() << "convert failed"<< "\n";
+        }
 
         // Create a global variable with the constant address
         llvm::GlobalVariable *MyVariable = new llvm::GlobalVariable(
@@ -244,7 +250,7 @@ void insertAddrListtoSection(Module &M, std::list<llvm::BlockAddress*> addrs) {
             Int64Ty,               // Type
             false,                 // IsConstant
             llvm::GlobalValue::ExternalLinkage, // Linkage
-            AddrConstant,          // Initializer
+            resultConstant,          // Initializer
             "myVariable",          // Name
             nullptr,               // InsertBefore
             llvm::GlobalValue::NotThreadLocal, // Thread Local
@@ -282,5 +288,5 @@ PreservedAnalyses InterproceduralGraphPass::run(Module &M, ModuleAnalysisManager
         interproceduralGraphImpl(M, CG);
 
         // Indicate that no analyses are preserved after this pass runs
-        return PreservedAnalyses::all();
+        return PreservedAnalyses::none();
     }
