@@ -12,6 +12,7 @@
 #include <fstream>
 #include <list>
 #include <algorithm>
+#include "llvm/Support/FormatVariadic.h"
 using namespace llvm;
 
 
@@ -19,23 +20,27 @@ namespace {
 	// Data structures for the graph
 struct Node {
     std::string name;
-    std::string address;
+    llvm::BasicBlock *BB;
     std::string FunctionName;
 
-Node() : name(""), address(""), FunctionName("") {}
-Node(const std::string &n, const std::string &a, const std::string &fn)
-        : name(n), address(a), FunctionName(fn) {}
+    // Default constructor
+    Node() : name(""), BB(nullptr), FunctionName("") {}
+
+    // Parameterized constructor
+    Node(const std::string &n, llvm::BasicBlock *bb, const std::string &fn)
+        : name(n), BB(bb), FunctionName(fn) {}
 };
 
 struct Edge {
-    std::string from; // node.name + "_" + node.address
-    std::string to;
-    std::string edgeType; // Inter or Intra
-    Edge() : from(""), to(""), edgeType("") {}
-    Edge(const std::string &n, const std::string &a, const std::string &fn)
-        : from(n), to(a), edgeType(fn) {}
+    llvm::BasicBlock *from; //
+    llvm::BasicBlock *to;
+    std::string edgeType; // [Inter,Intra,return]
+    Edge() : from(nullptr), to(nullptr), edgeType("") {}
+    Edge(llvm::BasicBlock *from, llvm::BasicBlock *to, const std::string &edgeType)
+        : from(from), to(to), edgeType(edgeType) {}
 
-    // Overload the equality operator for comparison
+
+   // Overload the equality operator for comparison
     bool operator==(const Edge &other) const {
         return from == other.from && to == other.to;
     }
@@ -50,16 +55,16 @@ struct Edge {
 
 
 struct InterproceduralGraph {
-    std::map<std::string, Node> nodes;
+    std::map<llvm:: BasicBlock*, Node> nodes;
     std::vector<Edge> edges;
-    std::list<std::string> intermadiateAddr;
+    std::list<llvm::BasicBlock*> intermadiateAddr;
     std::set<std::string> functionsWithIndirectCalls;
-    std::list<llvm::BlockAddress*> addrPointer;
-    std::string getSig(Node node){
-	return node.name + "_" + node.address;
+    std::list<llvm::BasicBlock*> addrPointer;
+    llvm::BasicBlock* getSig(const Node &node) {
+    return node.BB;
     }
-    void addNode(Node &node) {
-	std::string sig = getSig(node);
+    void addNode(const Node &node) {
+	llvm::BasicBlock* sig = getSig(node);
         nodes[sig] = node;
     }
 
@@ -72,34 +77,23 @@ struct InterproceduralGraph {
 
     void addIntraproceduralEdges(Function &F){
 	 for (BasicBlock &BB : F) {
-            // Print the name of the basic block
-            outs() << "BasicBlock: " << BB.getName() << "\n";
-	    BlockAddress *BBAddress = BlockAddress::get(&F, &BB);
-	    std::string str;
-    	    llvm::raw_string_ostream rso(str);
-	    rso << BBAddress;
-	    Node BBNode = Node(BB.getName().str(), str, F.getName().str());
+	    Node BBNode = Node(BB.getName().str(), &BB, F.getName().str());
 	    addNode(BBNode);
-	    if (intermadiateAddr.end() == std::find(intermadiateAddr.begin(), intermadiateAddr.end(), str)){
-		intermadiateAddr.push_back(str);
-		addrPointer.push_back(BBAddress);
-	    }
-	    std::string BBSig = getSig(BBNode);
+	   if (std::find(intermadiateAddr.begin(), intermadiateAddr.end(), &BB) == intermadiateAddr.end()) {
+            intermadiateAddr.push_back(&BB);
+            addrPointer.push_back(&BB);
+           }
+	    BasicBlock* BBSig = getSig(BBNode);
             // Iterate over each successor of the basic block
             for (BasicBlock *Succ : successors(&BB)) {
-                outs() << "  Successor: " << Succ->getName() << "\n";
-		BlockAddress *SuccAddress = BlockAddress::get(&F, Succ);
-		std::string succstr;
-    	    	llvm::raw_string_ostream rso2(succstr);
-	    	rso2 << SuccAddress;
-		rso2.flush();
-	    	Node SuccNode = Node(Succ->getName().str(), succstr, F.getName().str());
+	    	Node SuccNode = Node(Succ->getName().str(), Succ, F.getName().str());
 		addNode(SuccNode);
-		if (intermadiateAddr.end() == std::find(intermadiateAddr.begin(), intermadiateAddr.end(), succstr)){
-		intermadiateAddr.push_back(succstr);
-		addrPointer.push_back(SuccAddress);
-		}
-		std::string succSig = getSig(SuccNode);
+	    	// If the successor's address is not already in intermadiateAddr, add it
+            	if (std::find(intermadiateAddr.begin(), intermadiateAddr.end(), Succ) == intermadiateAddr.end()) {
+                	intermadiateAddr.push_back(Succ);
+                	addrPointer.push_back(Succ);
+            	}
+		BasicBlock* succSig = getSig(SuccNode);
 		Edge intraEdge = Edge(BBSig, succSig, "Intra");
 		addEdge(intraEdge);
             }
@@ -121,39 +115,28 @@ struct InterproceduralGraph {
                     		for (const Instruction &I : CBB) {
                         		if (const CallBase *CB = dyn_cast<CallBase>(&I)) {
                             		if (CB->getCalledFunction() == callee) {
-                                	// Found the call, now get the basic block address
-                                	// const void *CBBAddr = &CBB;
-					// llvm::BlockAddress* CBBAddress = const_cast<llvm::BlockAddress*>(static_cast<const llvm::BlockAddress*>(CBBAddr));
-					// llvm::BlockAddress *CBBAddress = BlockAddress::get(caller, const_cast<BasicBlock*>(&CBB));
-					llvm::BlockAddress *CBBAddress = llvm::BlockAddress::get(const_cast<llvm::Function*>(caller), const_cast<llvm::BasicBlock*>(&CBB));
-
-					std::string callerStr;
-    	    				llvm::raw_string_ostream rso3(callerStr);
-	    				rso3 << CBBAddress;
-					Node callerNode = Node(CBB.getName().str(), rso3.str(), caller->getName().str());
-					std::string callersig = getSig(callerNode);
+						llvm::BasicBlock *CBBPtr = const_cast<llvm::BasicBlock*>(&CBB);
+					Node callerNode = Node(CBB.getName().str(), CBBPtr, caller->getName().str());
+					llvm::BasicBlock* callersig = getSig(callerNode);
 					addNode(callerNode);
-					    if (intermadiateAddr.end() == std::find(intermadiateAddr.begin(), intermadiateAddr.end(), callerStr)){
-					intermadiateAddr.push_back(callerStr);
-					addrPointer.push_back(CBBAddress);
-	    					}
+					if (std::find(intermadiateAddr.begin(), intermadiateAddr.end(), CBBPtr) == intermadiateAddr.end()){
+					intermadiateAddr.push_back(CBBPtr);
+					addrPointer.push_back(CBBPtr);
+	    				}
+
                                 	//addEdge(caller->getName().str(), callee->getName().str());
  					if (callee && !callee->isDeclaration()) {
 						for (BasicBlock &calleeBB : *callee){
 							for (Instruction &I : calleeBB){
 								if (isa<llvm::ReturnInst>(&I)) {
 									found = true;
-            								BlockAddress *RetAddress = BlockAddress::get(callee, &calleeBB);
 
-						std::string retStr;
-    	    					llvm::raw_string_ostream rso4(retStr);
-	    					rso4 << RetAddress;
-						Node calleeNode = Node(calleeBB.getName().str(), retStr, callee->getName().str());
-						std::string calleesig = getSig(calleeNode);
+						Node calleeNode = Node(calleeBB.getName().str(), &calleeBB, callee->getName().str());
+						BasicBlock* calleesig = getSig(calleeNode);
 						addNode(calleeNode);
-						  if (intermadiateAddr.end() == std::find(intermadiateAddr.begin(), intermadiateAddr.end(), retStr)){
-						intermadiateAddr.push_back(retStr);
-						addrPointer.push_back(RetAddress);
+						if (std::find(intermadiateAddr.begin(), intermadiateAddr.end(), &calleeBB) == intermadiateAddr.end()){
+							intermadiateAddr.push_back(&calleeBB);
+							addrPointer.push_back(&calleeBB);
 	    					}
 						Edge interEdge = Edge(callersig, calleesig, "Inter");
 						addEdge(interEdge);
@@ -209,10 +192,10 @@ bool writeGraph() {
     }
 
     // Write the list elements to the file
-    for (std::string value : intermadiateAddr) {
-        outFile << value << std::endl;  // Each value on a new line
+    for (llvm::BasicBlock* addr : intermadiateAddr) {
+	std::string bbAddress = llvm::formatv("{0}", static_cast<const void*>(addr)).str();
+        outFile << bbAddress << std::endl;  // Each value on a new line
     }
-
     // Close the file
     outFile.close();
     return true;
@@ -220,47 +203,193 @@ bool writeGraph() {
 
 };
 
-void insertAddrListtoSection(Module &M, std::list<llvm::BlockAddress*> addrs) {
-	LLVMContext &Context = M.getContext();
-    	IRBuilder<> Builder(Context);
+// void insertAddrListtoSection(Module &M, std::list<llvm::BasicBlock*> addrs) {
+// 	LLVMContext &Context = M.getContext();
+//     	IRBuilder<> Builder(Context);
 
-	// Create a pointer type and an integer type
-    	//Type *IntPtrTy = Type::getInt8Ty(Context)->getPointerTo();
-    	Type *Int64Ty = Type::getInt64Ty(Context);
+// 	// Create a pointer type and an integer type
+//     	//Type *IntPtrTy = Type::getInt8Ty(Context)->getPointerTo();
+//     	Type *Int64Ty = Type::getInt64Ty(Context);
 
-    	// Assume each string in the list corresponds to a unique pointer
-    	for (const auto &addr : addrs) {
-	outs() << "addr " << addr << "\n";
-	llvm::Type *addrType = addr->getType();
-	if (!addrType->isPointerTy()) {
-    	outs() << "Error: addr is not a pointer type.\n";
-    	return ; // Or handle the error as appropriate
-	}
-        //llvm::Constant *AddrConstant = llvm::ConstantExpr::getPtrToInt(addr, Int64Ty);
-	Value *result = Builder.CreatePtrToInt(addr, Type::getInt64Ty(Context));
-              // llvm::errs() << "result:" << result << "\n";
-              Constant *resultConstant = dyn_cast<Constant>(result);
-              if (!resultConstant) {
-               llvm::errs() << "convert failed"<< "\n";
-        }
+//     	// Assume each string in the list corresponds to a unique pointer
+//     	for (const auto &addr : addrs) {
+// 	outs() << "addr " << addr << "\n";
+// 	llvm::Type *addrType = addr->getType();
+// 	if (!addrType->isPointerTy()) {
+//     	outs() << "Error: addr is not a pointer type.\n";
+//     	return ; // Or handle the error as appropriate
+// 	}
+//         //llvm::Constant *AddrConstant = llvm::ConstantExpr::getPtrToInt(addr, Int64Ty);
+// 	Builder.SetInsertPoint(addr);
+// 	Value *result = Builder.CreatePtrToInt(addr, Type::getInt64Ty(Context));
+//               // llvm::errs() << "result:" << result << "\n";
+//               Constant *resultConstant = dyn_cast<Constant>(result);
+//               if (!resultConstant) {
+//                llvm::errs() << "convert failed"<< "\n";
+//         }
 
-        // Create a global variable with the constant address
-        llvm::GlobalVariable *MyVariable = new llvm::GlobalVariable(
-            M,                     // Module
-            Int64Ty,               // Type
-            false,                 // IsConstant
-            llvm::GlobalValue::ExternalLinkage, // Linkage
-            resultConstant,          // Initializer
-            "myVariable",          // Name
-            nullptr,               // InsertBefore
-            llvm::GlobalValue::NotThreadLocal, // Thread Local
-            0,                     // AddressSpace
-            true                   // Constant
+//         // Create a global variable with the constant address
+//         llvm::GlobalVariable *MyVariable = new llvm::GlobalVariable(
+//             M,                     // Module
+//             Int64Ty,               // Type
+//             false,                 // IsConstant
+//             llvm::GlobalValue::ExternalLinkage, // Linkage
+//             resultConstant,          // Initializer
+//             "myVariable",          // Name
+//             nullptr,               // InsertBefore
+//             llvm::GlobalValue::NotThreadLocal, // Thread Local
+//             0,                     // AddressSpace
+//             true                   // Constant
+//         );
+//         MyVariable->setSection(".section_for_address");
+// 	}
+// 	return;
+// }
+// void insertAddrListtoSection(Module &M, std::list<llvm::BasicBlock*> addrs) {
+//     LLVMContext &Context = M.getContext();
+//     IRBuilder<> Builder(Context);
+
+//     Type *Int64Ty = Type::getInt64Ty(Context);
+
+//     for (const auto &addr : addrs) {
+//         outs() << "Processing basic block at address " << addr << "\n";
+// 	// llvm::Type *addrType = addr->getType();
+// 	// if (!addrType->isPointerTy()) {
+//     	// outs() << "Error: addr is not a pointer type" << addrType <<"\n";
+//     	// return ; // Or handle the error as appropriate
+// 	// }
+//         // Convert the address of the basic block to an integer
+
+
+//         if (!addr->getType()->isPointerTy()) {
+//             outs() << "Error: addr is not a pointer type\n";
+//             continue;
+//         }
+
+//         outs() << "Source type: " << *addr->getType() << "\n";
+//         outs() << "Target type: " << *Int64Ty << "\n";
+
+//         Value *addrValue = Builder.CreatePtrToInt(addr, Int64Ty);
+
+//         // Ensure that the value is a constant
+//         if (Constant *constAddrValue = dyn_cast<Constant>(addrValue)) {
+//             // Create a global variable with the integer value
+//             GlobalVariable *MyVariable = new GlobalVariable(
+//                 M,                      // Module
+//                 Int64Ty,                // Type
+//                 false,                  // IsConstant
+//                 GlobalValue::ExternalLinkage, // Linkage
+//                 constAddrValue,         // Initializer
+//                 "myVariable",           // Name
+//                 nullptr,                // InsertBefore
+//                 GlobalValue::NotThreadLocal, // Thread Local
+//                 0,                      // AddressSpace
+//                 true                    // Constant
+//             );
+//             // Set the section where the global variable should be placed
+//             MyVariable->setSection(".section_for_address");
+//         } else {
+//             outs() << "Error: The address value is not a constant\n";
+//             // Handle the error as appropriate
+//         }
+//     }
+//     return;
+// }
+// void insertAddrListtoSection(Module &M, std::list<llvm::BasicBlock*> addrs) {
+//     LLVMContext &Context = M.getContext();
+//     Type *Int64Ty = Type::getInt64Ty(Context);
+
+//     for (const auto &addr : addrs) {
+//         outs() << "Processing basic block at address " << addr << "\n";
+
+//         // Convert the address of the basic block to an integer
+//         Value *addrValue = ConstantExpr::getPtrToInt(addr, Int64Ty);
+
+//         if (!isa<Constant>(addrValue)) {
+//             outs() << "Error: addrValue is not a constant\n";
+//             return; // Handle the error as appropriate
+//         }
+
+//         // Create a global variable with the integer value
+//         GlobalVariable *MyVariable = new GlobalVariable(
+//             M,                       // Module
+//             Int64Ty,                 // Type
+//             false,                   // IsConstant
+//             GlobalValue::ExternalLinkage, // Linkage
+//             cast<Constant>(addrValue), // Initializer
+//             "myVariable",            // Name
+//             nullptr,                 // InsertBefore
+//             GlobalValue::NotThreadLocal, // Thread Local
+//             0,                       // AddressSpace
+//             true                     // Constant
+//         );
+
+//         // Set the section where the global variable should be placed
+//         MyVariable->setSection(".section_for_address");
+//     }
+//     return;
+// }
+
+
+void insertAddrListtoSection(llvm::Module &M, std::list<llvm::BasicBlock*> addrs) {
+    llvm::LLVMContext &Context = M.getContext();
+    llvm::Type *Int64Ty = llvm::Type::getInt64Ty(Context);
+
+    for (const auto &addr : addrs) {
+        llvm::outs() << "Processing basic block at address " << addr << "\n";
+
+        // Convert the address of the basic block to an integer representation
+        llvm::Value *addrValue = llvm::ConstantInt::get(Int64Ty, reinterpret_cast<uint64_t>(addr));
+
+        // Create a global variable to store the integer address
+        llvm::GlobalVariable *GV = new llvm::GlobalVariable(
+            M,
+            Int64Ty,                           // Type: integer type
+            false,                             // is constant
+            llvm::GlobalValue::InternalLinkage, // linkage
+            llvm::dyn_cast<llvm::Constant>(addrValue), // initializer
+            "BasicBlockAddr"                   // name
         );
-        MyVariable->setSection(".section_for_address");
-	}
-	return;
+
+        // Set the section for the global variable
+        GV->setSection(".custom_section");
+    }
 }
+
+
+// void insertAddrListtoSection(Module &M, std::list<llvm::BasicBlock*> addrs) {
+//     LLVMContext &Context = M.getContext();
+//     Type *Int64Ty = Type::getInt64Ty(Context);
+
+//     for (const auto &addr : addrs) {
+//         outs() << "Processing basic block at address " << addr << "\n";
+
+//         // Get a Constant that represents the address of the basic block
+//         Constant *blockAddr = BlockAddress::get(addr->getParent(), addr);
+
+//         // Convert the block address to an integer
+//         Value *addrValue = ConstantExpr::getPtrToInt(blockAddr, Int64Ty);
+
+//         // Create a global variable with the integer value
+//         GlobalVariable *MyVariable = new GlobalVariable(
+//             M,                       // Module
+//             Int64Ty,                 // Type
+//             false,                   // IsConstant
+//             GlobalValue::ExternalLinkage, // Linkage
+//             cast<Constant>(addrValue), // Initializer
+//             "myVariable",            // Name
+//             nullptr,                 // InsertBefore
+//             GlobalValue::NotThreadLocal, // Thread Local
+//             0,                       // AddressSpace
+//             true                     // Constant
+//         );
+
+//         // Set the section where the global variable should be placed
+//         MyVariable->setSection(".section_for_address");
+//     }
+//     return;
+// }
+
 // Helper function that does the actual graph construction and output
 void interproceduralGraphImpl(Module &M, CallGraph &CG) {
     InterproceduralGraph IPG;
@@ -274,7 +403,7 @@ void interproceduralGraphImpl(Module &M, CallGraph &CG) {
     if (!IPG.writeGraph()){
 	 errs() << "Error: Could not open the file for writing!" << "\n";
     }
-    insertAddrListtoSection(M,IPG.addrPointer);
+    insertAddrListtoSection(M,IPG.intermadiateAddr);
 }
 
 } // end anonymous namespace
@@ -288,5 +417,5 @@ PreservedAnalyses InterproceduralGraphPass::run(Module &M, ModuleAnalysisManager
         interproceduralGraphImpl(M, CG);
 
         // Indicate that no analyses are preserved after this pass runs
-        return PreservedAnalyses::none();
+        return PreservedAnalyses::all();
     }

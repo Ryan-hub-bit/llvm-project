@@ -2657,7 +2657,7 @@ void Verifier::verifyStatepoint(const CallBase &Call) {
   // Note: It is legal for a single derived pointer to be listed multiple
   // times.  It's non-optimal, but it is legal.  It can also happen after
   // insertion if we strip a bitcast away.
-  // Note: It is really tempting to check that each base is relocated and
+//   Note: It is really tempting to check that each base is relocated and
   // that a derived pointer is never reused as a base pointer.  This turns
   // out to be problematic since optimizations run after safepoint insertion
   // can recognize equality properties that the insertion logic doesn't know
@@ -2915,7 +2915,7 @@ void Verifier::visitFunction(const Function &F) {
     Check(pred_empty(Entry),
           "Entry block to function must not have predecessors!", Entry);
 
-    // The address of the entry block cannot be taken, unless it is dead.
+//     The address of the entry block cannot be taken, unless it is dead.
     if (Entry->hasAddressTaken()) {
       Check(!BlockAddress::lookup(Entry)->isConstantUsed(),
             "blockaddress may not be used with the entry block!", Entry);
