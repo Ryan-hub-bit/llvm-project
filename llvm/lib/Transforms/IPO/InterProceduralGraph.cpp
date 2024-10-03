@@ -184,7 +184,7 @@ struct InterproceduralGraph {
     }
 bool writeGraph() {
         // Create an output file stream object to write to a file
-    std::ofstream outFile("/home/ryan/llvm-project/build2/test/intermadiateAddress.txt");
+    std::ofstream outFile("/home/isec/Documents/llvm-project/build/test/intermadiateAddress.txt");
 
     // Check if the file opened successfully
     if (!outFile) {
@@ -222,10 +222,10 @@ void insertAddrListtoSection(Module &M, std::list<BasicBlock*> addrs) {
         Function *parentFunction = block->getParent();
         if  (block == &parentFunction->getEntryBlock()){
             // Convert the function address to an integer
-        Value *addrValue = ConstantExpr::getPtrToInt(parentFunction, Int64Ty);
+         addrValue = ConstantExpr::getPtrToInt(parentFunction, Int64Ty);
         } else{
         // Convert the block address to an integer
-        Value *addrValue = ConstantExpr::getPtrToInt(blockAddr, Int64Ty);
+        addrValue = ConstantExpr::getPtrToInt(blockAddr, Int64Ty);
         }
         
         // Create a unique name for the global variable
