@@ -115,7 +115,19 @@ struct InterproceduralGraph {
                                 for (const Instruction &I : CBB) {
                                         if (const CallBase *CB = dyn_cast<CallBase>(&I)) {
                                         if (CB->getCalledFunction() == callee) {
-                                                llvm::BasicBlock *CBBPtr = const_cast<llvm::BasicBlock*>(&CBB);
+                                        llvm::BasicBlock *CBBPtr = const_cast<llvm::BasicBlock*>(&CBB);
+                                        unsigned numSuccessors = CBBPtr->getTerminator()->getNumSuccessors();
+                                        outs() << "numSuccessors" << numSuccessors << "\n";
+                                        llvm::BasicBlock* afterReturnsig = nullptr;
+                                        Node afterReturnNode = Node();
+                                        if (numSuccessors == 1){
+                                            llvm::BasicBlock *successor = CBBPtr->getTerminator()->getSuccessor(0);
+                                            afterReturnNode = Node(successor->getName().str(), successor, caller->getName().str());
+                                        }
+                                        if (afterReturnNode.BB != nullptr){
+                                            afterReturnsig = getSig(afterReturnNode);
+                                        }
+                                       
                                         Node callerNode = Node(CBB.getName().str(), CBBPtr, caller->getName().str());
                                         llvm::BasicBlock* callersig = getSig(callerNode);
                                         addNode(callerNode);
@@ -139,7 +151,9 @@ struct InterproceduralGraph {
                                                         addrPointer.push_back(&calleeBB);
                                                 }
                                                 Edge interEdge = Edge(callersig, calleesig, "Inter");
+                                                Edge returnEdge = Edge(calleesig, afterReturnsig, "return");
                                                 addEdge(interEdge);
+                                                addEdge(returnEdge);
                                                 break;
                                                 }
                                                 if (found)
