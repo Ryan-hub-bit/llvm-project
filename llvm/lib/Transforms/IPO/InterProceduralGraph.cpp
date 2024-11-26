@@ -13,6 +13,7 @@
 #include <list>
 #include <algorithm>
 #include "llvm/Support/FormatVariadic.h"
+#include "llvm/ADT/SCCIterator.h"
 using namespace llvm;
 
 
@@ -54,12 +55,15 @@ struct Edge {
 };
 
 
+
+
 struct InterproceduralGraph {
     std::map<llvm:: BasicBlock*, Node> nodes;
     std::vector<Edge> edges;
     std::list<llvm::BasicBlock*> intermadiateAddr;
     std::set<std::string> functionsWithIndirectCalls;
     std::list<llvm::BasicBlock*> addrPointer;
+    std::list<llvm::BasicBlock*> tailcallAddr;
     llvm::BasicBlock* getSig(const Node &node) {
     return node.BB;
     }
@@ -117,7 +121,7 @@ struct InterproceduralGraph {
                                         if (CB->getCalledFunction() == callee) {
                                         llvm::BasicBlock *CBBPtr = const_cast<llvm::BasicBlock*>(&CBB);
                                         unsigned numSuccessors = CBBPtr->getTerminator()->getNumSuccessors();
-                                        outs() << "numSuccessors" << numSuccessors << "\n";
+                                        outs() << "numSuccessors: " << numSuccessors << "\n";
                                         llvm::BasicBlock* afterReturnsig = nullptr;
                                         Node afterReturnNode = Node();
                                         if (numSuccessors == 1){
@@ -178,22 +182,123 @@ struct InterproceduralGraph {
             }
         }
     }
+// void addTailCallEdges(CallGraph &CG) {
+//      // Iterate over all functions in the SCC
+//       // Use the SCC iterator to find strongly connected components in the CallGraph
+//     for (scc_iterator<CallGraph *> SCCI = scc_begin(&CG), E = scc_end(&CG); SCCI != E; ++SCCI) {
+//       const std::vector<CallGraphNode *> &SCC = *SCCI;
+//       errs() << "SCC with " << SCC.size() << " nodes:\n";
+//     for (CallGraphNode *Node : SCC) {
+//       Function *F = Node->getFunction();
+//       if (!F || F->isDeclaration())
+//         continue;
+ 
+//       // Iterate over all instructions in the function
+//       for (auto &BB : *F) {
+//         for (auto &I : BB) {
+//           // Check if the instruction is a call instruction
+//           if (auto *CI = dyn_cast<CallInst>(&I)) {
+//             if (CI->isTailCall()) {
+//               // Found a tail call in a function
+//               errs() << "Tail call found in function: " << F->getName() << "\n";
+ 
+//               // Check if this tail call is part of a cycle
+//               // (This is guaranteed if we are in an SCC with more than one node)
+//               if (SCC.size() > 1) {
+//                 errs() << "Cycle detected in SCC with tail call!\n";
+//               } else {
+//                 // Single node SCC, check for recursion
+//                 if (isRecursiveTailCall(SCC)) {
+//                     Node tailCallNode = Node(BB.getName().str(), &BB, F->getName().str());
+//                     BasicBlock* tailcallsig = getSig(tailCallNode);
+//                     addNode(tailCallNode);
+//                     BasicBlock* tailcallsig = getSig(tailCallNode);
+//                     if (std::find(tailcallAddr.begin(), tailcallAddr.end(), &BB) == tailcallAddr.end()){
+//                                                         tailcallAddr.push_back(&BB);
+//                                                 }
+//                     Edge tailcallEdge = Edge(tailcallsig, tailcallsig, "tailcall");
+//                     addEdge(tailcallEdge);
+//                   errs() << "Recursive tail call detected in: " << F->getName() << "\n";
+//                 }
+//               }
+//             }
+//           }
+//         }
+//       }
+//     }
+//     }
+// }
 
+void addTailCallEdges(CallGraph &CG) {
+    // Iterate over all functions in the SCC
+    // Use the SCC iterator to find strongly connected components in the CallGraph
+    for (scc_iterator<CallGraph *> SCCI = scc_begin(&CG), E = scc_end(&CG); SCCI != E; ++SCCI) {
+        const std::vector<CallGraphNode *> &SCC = *SCCI;
+        errs() << "SCC with " << SCC.size() << " nodes:\n";
+        for (CallGraphNode *CGNode : SCC) {
+            Function *F = CGNode->getFunction();
+            if (!F || F->isDeclaration())
+                continue;
+
+            // Iterate over all instructions in the function
+            for (auto &BB : *F) {
+                for (auto &I : BB) {
+                    // Check if the instruction is a call instruction
+                    if (auto *CI = dyn_cast<CallInst>(&I)) {
+                        if (CI->isTailCall()) {
+                            // Found a tail call in a function
+                            errs() << "Tail call found in function: " << F->getName() << "\n";
+
+                            // Check if this tail call is part of a cycle
+                            if (SCC.size() > 1) {
+                                errs() << "Cycle detected in SCC with tail call!\n";
+                            } else {
+                                // Single node SCC, check for recursion
+                                if (isRecursiveTailCall(SCC)) {
+                                    Node tailCallNode = Node(BB.getName().str(), &BB, F->getName().str());
+                                    addNode(tailCallNode);
+                                    BasicBlock* tailcallsig = getSig(tailCallNode);
+                                    if (std::find(tailcallAddr.begin(), tailcallAddr.end(), &BB) == tailcallAddr.end()) {
+                                        tailcallAddr.push_back(&BB);
+                                    }
+
+                                    Edge tailcallEdge = Edge(tailcallsig, tailcallsig, "tailcall");
+                                    addEdge(tailcallEdge);
+                                    errs() << "Recursive tail call detected in: " << F->getName() << "\n";
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+ 
+// Utility function to check for self-recursion in single-node SCCs
+  bool isRecursiveTailCall(const std::vector<CallGraphNode *> &SCC) {
+    if (SCC.size() != 1)
+      return false;
+ 
+    CallGraphNode *Node = SCC[0];
+    Function *F = Node->getFunction();
+    if (!F || F->isDeclaration())
+      return false;
+ 
+    // Look for self-recursive calls
+    for (CallGraphNode::iterator CI = Node->begin(); CI != Node->end(); ++CI) {
+      if (CI->second == Node) {
+        return true; // Self-recursive call found
+      }
+    }
+    return false;
+  }
 
     std::set<std::string> getPossibleIndirectTargets(const std::string &FuncName) {
         return std::set<std::string>();
     }
 
  void outputGraph() {
-        // errs() << "Nodes:\n";
-        // for (const auto &NodePair : nodes) {
-        //     errs() << "  " << NodePair.first << "\n";
-        // }
-
-        // errs() << "Edges:\n";
-        // for (const auto &Edge : edges) {
-        //     errs() << "  " << Edge.from << " -> " << Edge.to << ":" <<Edge.edgeType <<"\n";
-        // }
         return;
     }
 bool writeGraph() {
@@ -271,16 +376,17 @@ void insertAddrListtoSection(Module &M, std::list<BasicBlock*> addrs) {
 void interproceduralGraphImpl(Module &M, CallGraph &CG) {
     InterproceduralGraph IPG;
 
-    for (Function &F : M) {
-        IPG.addIntraproceduralEdges(F);
-    }
-    IPG.addInterproceduralEdges(CG);
-//     IPG.addIndirectCallEdges();
-    IPG.outputGraph();
-    if (!IPG.writeGraph()){
-         errs() << "Error: Could not open the file for writing!" << "\n";
-    }
-    insertAddrListtoSection(M,IPG.intermadiateAddr);
+//     for (Function &F : M) {
+//         IPG.addIntraproceduralEdges(F);
+//     }
+//     IPG.addInterproceduralEdges(CG);
+// //     IPG.addIndirectCallEdges();
+//     IPG.outputGraph();
+//     if (!IPG.writeGraph()){
+//          errs() << "Error: Could not open the file for writing!" << "\n";
+//     }
+//     insertAddrListtoSection(M,IPG.intermadiateAddr);
+   IPG.addTailCallEdges(CG);
 }
 
 } // end anonymous namespace
