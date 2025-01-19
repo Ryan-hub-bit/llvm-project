@@ -132,6 +132,9 @@ bool getEnableStackSizeSection();
 
 bool getEnableAddrsig();
 
+
+bool getEnableMatchIndirectCall();
+
 bool getEmitCallSiteInfo();
 
 bool getEnableMachineFunctionSplitter();

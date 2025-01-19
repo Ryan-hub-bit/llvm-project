@@ -6652,6 +6652,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(A->getValue());
   }
 
+  // if (Args.hasFlag(options::OPT_fcall_graph_section,
+  //                  options::OPT_fno_call_graph_section, false))
+  CmdArgs.push_back("-fmatch-indirect-call");
+
   Args.addOptInFlag(CmdArgs, options::OPT_fstack_size_section,
                     options::OPT_fno_stack_size_section);
 

@@ -5750,6 +5750,30 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   AllocAlignAttrEmitter AllocAlignAttrEmitter(*this, TargetDecl, CallArgs);
   Attrs = AllocAlignAttrEmitter.TryEmitAsCallSiteAttribute(Attrs);
 
+  if (CGM.getCodeGenOpts().MatchIndirectCall) {
+    // FIXME: create operand bundle only for indirect calls, not for all
+
+    assert((TargetDecl && TargetDecl->getFunctionType() ||
+            Callee.getAbstractInfo().getCalleeFunctionProtoType()) &&
+           "cannot find callee type");
+
+    //FunctionType here can be treat as the signature of the function
+    QualType CST;
+    if (TargetDecl && TargetDecl->getFunctionType())
+    // Second argument (0): Specifies no additional qualifiers (e.g., not const or volatile).
+      CST = QualType(TargetDecl->getFunctionType(), 0);
+    else if (const auto *FPT =
+                 Callee.getAbstractInfo().getCalleeFunctionProtoType())
+      CST = QualType(FPT, 0);
+
+    if (!CST.isNull()) {
+      auto *TypeIdMD = CGM.CreateMetadataIdentifierGeneralized(CST);
+      auto *TypeIdMDVal =
+          llvm::MetadataAsValue::get(getLLVMContext(), TypeIdMD);
+      BundleList.emplace_back("type", TypeIdMDVal);
+    }
+  }
+
   // Emit the actual call/invoke instruction.
   llvm::CallBase *CI;
   if (!InvokeDest) {

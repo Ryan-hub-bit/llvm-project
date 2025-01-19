@@ -4312,6 +4312,10 @@ defm data_sections : BoolFOption<"data-sections",
   PosFlag<SetTrue, [], [ClangOption, CC1Option],
           "Place each data in its own section">,
   NegFlag<SetFalse>>;
+defm match_indirect_call : BoolFOption<"match-indirect-call",
+  CodeGenOpts<"MatchIndirectCall">, DefaultFalse,
+  PosFlag<SetTrue, [], [CC1Option], "Record the typeID information for CallInstr for indirect call matching">,
+  NegFlag<SetFalse>>;
 defm stack_size_section : BoolFOption<"stack-size-section",
   CodeGenOpts<"StackSizeSection">, DefaultFalse,
   PosFlag<SetTrue, [], [ClangOption, CC1Option],
