@@ -39,6 +39,7 @@ set(sources
   X86FastPreTileConfig.cpp
   X86FastTileConfig.cpp
   X86PreTileConfig.cpp
+  X86LabelIndirectCallTarget.cpp
   X86ExpandPseudo.cpp
   X86FastISel.cpp
   X86FixupBWInsts.cpp
