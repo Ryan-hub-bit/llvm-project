@@ -146,7 +146,7 @@ namespace llvm {
           EmulatedTLS(false), EnableTLSDESC(false), EnableIPRA(false),
           EmitStackSizeSection(false), EnableMachineOutliner(false),
           EnableMachineFunctionSplitter(false), SupportsDefaultOutlining(false),
-          EmitAddrsig(false), BBAddrMap(false), EmitCallSiteInfo(false),
+          EmitAddrsig(false), MatchIndirectCall(false), BBAddrMap(false), EmitCallSiteInfo(false),
           SupportsDebugEntryValues(false), EnableDebugEntryValues(false),
           ValueTrackingVariableLocations(false), ForceDwarfFrameSection(false),
           XRayFunctionIndex(true), DebugStrictDwarf(false), Hotpatch(false),
@@ -328,6 +328,8 @@ namespace llvm {
     /// Memory Buffer that contains information on sampled basic blocks and used
     /// to selectively generate basic block sections.
     std::shared_ptr<MemoryBuffer> BBSectionsFuncListBuf;
+
+    unsigned MatchIndirectCall : 1;
 
     /// The flag enables call site info production. It is used only for debug
     /// info, and it is restricted only to optimized code. This can be used for
