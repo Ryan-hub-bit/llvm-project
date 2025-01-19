@@ -890,7 +890,7 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
 
     if (MI->isCandidateForCallSiteEntry() &&
         (DAG->getTarget().Options.EmitCallSiteInfo ||
-         DAG->getTarget().Options.MatchIndirectCall)) { {
+         DAG->getTarget().Options.MatchIndirectCall)) { 
       MF.addCallSiteInfo(MI, DAG->getCallSiteInfo(Node));
     }
 

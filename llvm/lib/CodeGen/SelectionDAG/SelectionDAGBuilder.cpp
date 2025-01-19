@@ -9609,7 +9609,7 @@ void SelectionDAGBuilder::visitCall(const CallInst &I) {
              {LLVMContext::OB_deopt, LLVMContext::OB_funclet,
               LLVMContext::OB_cfguardtarget, LLVMContext::OB_preallocated,
               LLVMContext::OB_clang_arc_attachedcall, LLVMContext::OB_kcfi,
-              LLVMContext::OB_convergencectrl,LLVMContext::OB_typ}) &&
+              LLVMContext::OB_convergencectrl,LLVMContext::OB_type}) &&
          "Cannot lower calls with arbitrary operand bundles!");
 
   SDValue Callee = getValue(I.getCalledOperand());

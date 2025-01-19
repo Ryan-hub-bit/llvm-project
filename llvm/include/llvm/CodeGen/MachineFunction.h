@@ -35,6 +35,7 @@
 #include "llvm/Target/TargetOptions.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/Support/MD5.h"
 #include <bitset>
 #include <cassert>
 #include <cstdint>
@@ -516,7 +517,7 @@ public:
       auto *OBVal = OB.Inputs.front().get();
       auto *TypeIdMD = cast<MetadataAsValue>(OBVal)->getMetadata();
       auto *TypeIdStr = cast<MDString>(TypeIdMD);
-      assert(TypeIdStr->getString().endswith(".generalized") &&
+      assert(TypeIdStr->getString().ends_with(".generalized") &&
              "invalid type identifier");
 
       // Compute numeric type id from generalized type id string
