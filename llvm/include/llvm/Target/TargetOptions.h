@@ -318,6 +318,8 @@ namespace llvm {
     /// Emit address-significance table.
     unsigned EmitAddrsig : 1;
 
+    unsigned MatchIndirectCall : 1;
+
     // Emit the SHT_LLVM_BB_ADDR_MAP section containing basic block address
     // which can be used to map virtual addresses to machine basic blocks.
     unsigned BBAddrMap : 1;
@@ -328,8 +330,6 @@ namespace llvm {
     /// Memory Buffer that contains information on sampled basic blocks and used
     /// to selectively generate basic block sections.
     std::shared_ptr<MemoryBuffer> BBSectionsFuncListBuf;
-
-    unsigned MatchIndirectCall : 1;
 
     /// The flag enables call site info production. It is used only for debug
     /// info, and it is restricted only to optimized code. This can be used for
