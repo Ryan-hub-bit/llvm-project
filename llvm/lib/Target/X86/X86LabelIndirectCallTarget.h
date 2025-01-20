@@ -26,12 +26,13 @@ private:
   const X86InstrInfo *TII = nullptr;
   const X86Subtarget *STI = nullptr;
 
-  bool processIndirectCall(MachineBasicBlock &MBB,
-                          MachineBasicBlock::iterator MBBI);
+  // bool processIndirectCall(MachineBasicBlock &MBB,
+                          // MachineBasicBlock::iterator MBBI);
 };
 
 FunctionPass *createX86LabelIndirectCallTargetPass();
 
+void initializeX86LabelIndirectCallPass(PassRegistry &Registry);
 } // end namespace llvm
 
 #endif // LLVM_LIB_TARGET_X86_X86LABELINDIRECTCALLTARGET_H
