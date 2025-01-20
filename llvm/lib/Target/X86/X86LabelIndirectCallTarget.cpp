@@ -99,19 +99,61 @@ StringRef X86LabelIndirectCallTarget::getPassName() const {
 }
 
 bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF) {
-  STI = &MF.getSubtarget<X86Subtarget>();
-  TII = STI->getInstrInfo();
-  bool Modified = false;
-   errs() <<"in X86LabelIndirectCallTarget" <<"\n";
-  // for (auto &MBB : MF) {
-  //   for (auto MBBI = MBB.begin(); MBBI != MBB.end(); ++MBBI) {
-  //     if (MBBI->isCall() && MBBI->isIndirectBranch()) {
-  //       Modified |= processIndirectCall(MBB, MBBI);
-  //     }
-  //   }
-  // }
+  //  errs() <<"in X86LabelIndirectCallTarget" <<"\n";
+  FunctionInfo FuncInfo;
+  const auto &CallSitesInfoMap = MF->getCallSitesInfo();
 
-  return Modified;
+  TargetMachine *TM = &MF.getTarget();
+  for (auto &MBB : *MF) {
+    DEBUG(dbgs() << "Processing MBB: " << MBB.getName() << "\n");
+    
+    for (auto &MI : MBB) {
+      if (TM.Options.MatchIndirectCall && MI.isCall()) {
+        DEBUG(dbgs() << "Found call instruction: ");
+        DEBUG(MI.print(dbgs()));
+        DEBUG(dbgs() << "\n");
+
+        const auto &CallSiteInfo = CallSitesInfoMap.find(&MI);
+        if (CallSiteInfo != CallSitesInfoMap.end()) {
+          DEBUG(dbgs() << "  Found CallSiteInfo entry\n");
+          
+          if (auto *TypeId = CallSiteInfo->second.TypeId) {
+            // Emit label
+            MCSymbol *S = MF->getContext().createTempSymbol();
+            OutStreamer->emitLabel(S);
+            
+            // Get type id value
+            uint64_t TypeIdVal = TypeId->getZExtValue();
+            
+            DEBUG(dbgs() << "  Emitted label: " << S->getName() 
+                        << " for TypeId: 0x" << Twine::utohexstr(TypeIdVal) << "\n");
+            
+            // Add to function's callsite labels
+            FuncInfo.CallSiteLabels.emplace_back(TypeIdVal, S);
+            
+            DEBUG(dbgs() << "  Added to FuncInfo.CallSiteLabels"
+                        << " (total labels: " << FuncInfo.CallSiteLabels.size() << ")\n");
+          } else {
+            DEBUG(dbgs() << "  No TypeId found for this call site\n");
+          }
+        } else {
+          DEBUG(dbgs() << "  No CallSiteInfo found for this instruction\n");
+        }
+      }
+    }
+  }
+
+  // Add summary debug info after processing
+  DEBUG(dbgs() << "Function " << MF->getName() << " summary:\n");
+  DEBUG(dbgs() << "  Total call site labels: " << FuncInfo.CallSiteLabels.size() << "\n");
+  if (!FuncInfo.CallSiteLabels.empty()) {
+    DEBUG(dbgs() << "  Labels:\n");
+    for (const auto &Label : FuncInfo.CallSiteLabels) {
+      DEBUG(dbgs() << "    TypeId: 0x" << Twine::utohexstr(Label.first)
+                  << ", Label: " << Label.second->getName() << "\n");
+    }
+  }
+  return true
 }
 
 // bool X86LabelIndirectCallTarget::processIndirectCall(
