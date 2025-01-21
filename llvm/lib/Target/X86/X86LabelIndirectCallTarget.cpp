@@ -11,11 +11,11 @@
 // #include "llvm/CodeGen/MachineInstrBuilder.h"
 // #include "llvm/CodeGen/MachineModuleInfo.h"
 // #include "llvm/IR/Function.h"
-// #include "llvm/Support/Debug.h"
+// #include "llvm/Support/LLVM_DEBUG.h"
 
 // using namespace llvm;
 
-// #define DEBUG_TYPE "x86-label-indirect-call"
+// #define LLVM_DEBUG_TYPE "x86-label-indirect-call"
 
 
 // namespace llvm{
@@ -64,10 +64,10 @@
 // //   // Generate a unique label name
 // //   std::string LabelName = 
 // //       ("__indirect_call_" + BB->getName() + "_" + 
-// //        std::to_string(MI.getDebugLoc().getLine())).str();
+// //        std::to_string(MI.getLLVM_DEBUGLoc().getLine())).str();
 
 // //   // Add label reference to the call instruction
-// //   BuildMI(MBB, MBBI, MI.getDebugLoc(), TII->get(X86::LABEL))
+// //   BuildMI(MBB, MBBI, MI.getLLVM_DEBUGLoc(), TII->get(X86::LABEL))
 // //       .addSym(MF->createExternalSymbolName(LabelName));
 
 // //   return true;
@@ -85,6 +85,7 @@
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/IR/Function.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Target/TargetMachine.h"
 
 using namespace llvm;
 
@@ -98,62 +99,44 @@ StringRef X86LabelIndirectCallTarget::getPassName() const {
   return "X86 Label Indirect Call Target Pass";
 }
 
-bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF) {
-  //  errs() <<"in X86LabelIndirectCallTarget" <<"\n";
+bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF){
   FunctionInfo FuncInfo;
-  const auto &CallSitesInfoMap = MF->getCallSitesInfo();
+  const auto &CallSitesInfoMap = MF.getCallSitesInfo();  // Use '.' instead of '->'
 
-  TargetMachine *TM = &MF.getTarget();
-  for (auto &MBB : *MF) {
-    DEBUG(dbgs() << "Processing MBB: " << MBB.getName() << "\n");
-    
+  const TargetMachine &TM = MF.getTarget();  // Ensure TargetMachine is referenced correctly
+  for (auto &MBB : MF) {
     for (auto &MI : MBB) {
       if (TM.Options.MatchIndirectCall && MI.isCall()) {
-        DEBUG(dbgs() << "Found call instruction: ");
-        DEBUG(MI.print(dbgs()));
-        DEBUG(dbgs() << "\n");
+        LLVM_DEBUG(dbgs() << "Found call instruction: ");
+        LLVM_DEBUG(MI.print(dbgs()));
+        LLVM_DEBUG(dbgs() << "\n");
 
         const auto &CallSiteInfo = CallSitesInfoMap.find(&MI);
         if (CallSiteInfo != CallSitesInfoMap.end()) {
-          DEBUG(dbgs() << "  Found CallSiteInfo entry\n");
+          LLVM_DEBUG(dbgs() << "  Found CallSiteInfo entry\n");
           
           if (auto *TypeId = CallSiteInfo->second.TypeId) {
             // Emit label
-            MCSymbol *S = MF->getContext().createTempSymbol();
-            OutStreamer->emitLabel(S);
-            
-            // Get type id value
-            uint64_t TypeIdVal = TypeId->getZExtValue();
-            
-            DEBUG(dbgs() << "  Emitted label: " << S->getName() 
-                        << " for TypeId: 0x" << Twine::utohexstr(TypeIdVal) << "\n");
-            
-            // Add to function's callsite labels
-            FuncInfo.CallSiteLabels.emplace_back(TypeIdVal, S);
-            
-            DEBUG(dbgs() << "  Added to FuncInfo.CallSiteLabels"
-                        << " (total labels: " << FuncInfo.CallSiteLabels.size() << ")\n");
+            uint64_t TypeIdVal = TypeId->getZExtValue();  // Can be used later if needed
+            LLVM_DEBUG(dbgs() << "  TypeId value: 0x" << Twine::utohexstr(TypeIdVal) << "\n");
+            StringRef LabelName = ("callsite_" + Twine(callsiteID)).str();
+            // callsitetoTypeID[labelName].insert(TypeIdVal);
+            MCSymbol *Label = MF.getContext().getOrCreateSymbol(LabelName);
+            llvm::MachineInstr* MIptr = &MI;
+            MIptr->setPreInstrSymbol(MF, Label);
+            errs() <<"CallsiteID:" << callsiteID <<"\n";
+            callsiteID ++;
           } else {
-            DEBUG(dbgs() << "  No TypeId found for this call site\n");
+            LLVM_DEBUG(dbgs() << "  No TypeId found for this call site\n");
           }
         } else {
-          DEBUG(dbgs() << "  No CallSiteInfo found for this instruction\n");
+          LLVM_DEBUG(dbgs() << "  No CallSiteInfo found for this instruction\n");
         }
       }
     }
   }
 
-  // Add summary debug info after processing
-  DEBUG(dbgs() << "Function " << MF->getName() << " summary:\n");
-  DEBUG(dbgs() << "  Total call site labels: " << FuncInfo.CallSiteLabels.size() << "\n");
-  if (!FuncInfo.CallSiteLabels.empty()) {
-    DEBUG(dbgs() << "  Labels:\n");
-    for (const auto &Label : FuncInfo.CallSiteLabels) {
-      DEBUG(dbgs() << "    TypeId: 0x" << Twine::utohexstr(Label.first)
-                  << ", Label: " << Label.second->getName() << "\n");
-    }
-  }
-  return true
+  return true;
 }
 
 // bool X86LabelIndirectCallTarget::processIndirectCall(
@@ -174,10 +157,10 @@ bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF) {
 //   // Generate a unique label name
 //   std::string LabelName = 
 //       ("__indirect_call_" + BB->getName() + "_" + 
-//        std::to_string(MI.getDebugLoc().getLine())).str();
+//        std::to_string(MI.getLLVM_DEBUGLoc().getLine())).str();
 
 //   // Add label reference to the call instruction
-//   BuildMI(MBB, MBBI, MI.getDebugLoc(), TII->get(X86::LABEL))
+//   BuildMI(MBB, MBBI, MI.getLLVM_DEBUGLoc(), TII->get(X86::LABEL))
 //       .addSym(MF->createExternalSymbolName(LabelName));
 
 //   return true;

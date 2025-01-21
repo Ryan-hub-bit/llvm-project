@@ -19,7 +19,7 @@ class X86Subtarget;
 class X86LabelIndirectCallTarget : public MachineFunctionPass {
 public:
   static char ID;
-  X86LabelIndirectCallTarget() : MachineFunctionPass(ID) {}
+  X86LabelIndirectCallTarget() : MachineFunctionPass(ID),callsiteID(0) {}
 
   StringRef getPassName() const override;
   bool runOnMachineFunction(MachineFunction &MF) override;
@@ -50,9 +50,7 @@ public:
   };
 
 private:
-  const X86InstrInfo *TII = nullptr;
-  const X86Subtarget *STI = nullptr;
-
+    int callsiteID;
   // bool processIndirectCall(MachineBasicBlock &MBB,
                           // MachineBasicBlock::iterator MBBI);
 };
