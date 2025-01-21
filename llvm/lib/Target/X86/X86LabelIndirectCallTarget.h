@@ -10,6 +10,8 @@
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/MC/MCSymbol.h"
+#include "llvm/ADT/SmallSet.h"  // To use SmallSet or std::set for storing TypeIdVal
+#include "llvm/ADT/StringMap.h"  // To use StringMap for storing labelName -> TypeI
 
 namespace llvm {
 
@@ -20,7 +22,7 @@ class X86LabelIndirectCallTarget : public MachineFunctionPass {
 public:
   static char ID;
   X86LabelIndirectCallTarget() : MachineFunctionPass(ID),callsiteID(0) {}
-
+  bool doFinalization(Module &M) override;
   StringRef getPassName() const override;
   bool runOnMachineFunction(MachineFunction &MF) override;
   /// Store symbols and type identifiers used to create call graph section
@@ -51,6 +53,9 @@ public:
 
 private:
     int callsiteID;
+    SmallSet<uint64_t, 16> TypeIdSet;  // Add this line
+      // Map to store labelName -> set of TypeIdVal
+  StringMap<SmallSet<uint64_t, 4>> callsitetoTypeID;
   // bool processIndirectCall(MachineBasicBlock &MBB,
                           // MachineBasicBlock::iterator MBBI);
 };
