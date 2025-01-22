@@ -493,6 +493,7 @@ public:
     SmallVector<ArgRegPair, 1> ArgRegPairs;
      /// Callee type id.
     ConstantInt *TypeId = nullptr;
+    
 
     CallSiteInfo() {}
 
@@ -501,7 +502,7 @@ public:
     /// call graph section.
     CallSiteInfo(const CallBase &CB) {
       // Call graph section needs numeric type id only for indirect calls.
-      if (!CB.isIndirectCall())
+      if (!CB.isIndirectCall()||!CB.isMustTailCall() || !CB.isTailCall())
         return;
 
       auto Opt = CB.getOperandBundle(LLVMContext::OB_type);

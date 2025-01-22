@@ -21,7 +21,7 @@ class X86Subtarget;
 class X86LabelIndirectCallTarget : public MachineFunctionPass {
 public:
   static char ID;
-  X86LabelIndirectCallTarget() : MachineFunctionPass(ID),callsiteID(0) {}
+  X86LabelIndirectCallTarget() : MachineFunctionPass(ID),callsiteID(0),tailCallID(0) {}
   bool doFinalization(Module &M) override;
   StringRef getPassName() const override;
   bool runOnMachineFunction(MachineFunction &MF) override;
@@ -53,6 +53,7 @@ public:
 
 private:
     int callsiteID;
+    int tailCallID;
     SmallSet<uint64_t, 16> TypeIdSet;  // Add this line
       // Map to store labelName -> set of TypeIdVal
   StringMap<SmallSet<uint64_t, 4>> callsitetoTypeID;

@@ -57,33 +57,48 @@ bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF){
   for (auto &MBB : MF) {
     for (auto &MI : MBB) {
       if (TM.Options.MatchIndirectCall && MI.isCall()) {
-        // LLVM_DEBUG(dbgs() << "Found call instruction: ");
-        // LLVM_DEBUG(MI.print(dbgs()));
-        // LLVM_DEBUG(dbgs() << "\n");
-
         const auto &CallSiteInfo = CallSitesInfoMap.find(&MI);
         if (CallSiteInfo != CallSitesInfoMap.end()) {
-          // LLVM_DEBUG(dbgs() << "  Found CallSiteInfo entry\n");
-          
           if (auto *TypeId = CallSiteInfo->second.TypeId) {
-            // Emit label
-            uint64_t TypeIdVal = TypeId->getZExtValue();  // Can be used later if needed
-            LLVM_DEBUG(dbgs() << "  TypeId value: 0x" << Twine::utohexstr(TypeIdVal) << "\n");
-               // Generate labelName based on callsiteID
-            std::string labelName = "callsite_" + std::to_string(callsiteID);
-
-            // Insert the TypeIdVal into the map under labelName
-            callsitetoTypeID[labelName].insert(TypeIdVal);;
-            MCSymbol *Label = MF.getContext().getOrCreateSymbol(labelName);
-            llvm::MachineInstr* MIptr = &MI;
-            MIptr->setPreInstrSymbol(MF, Label);
-            errs() <<"CallsiteID:" << callsiteID <<"\n";
-            callsiteID ++;
+             // Emit label
+                uint64_t TypeIdVal = TypeId->getZExtValue();  // Can be used later if needed
+                LLVM_DEBUG(dbgs() << " Indirect or tail call target TypeId value: 0x" << Twine::utohexstr(TypeIdVal) << "\n");
+                  // Generate labelName based on callsiteID
+              if (CallSiteInfo->second.isMustTail){
+                LLVM_DEBUG(dbgs()<<"IsMustTailCall"<<"\n";)
+                std::string MTailCalllabelName = "tailcallsite_" + std::to_string(TailcallID);
+                // Insert the TypeIdVal into the map under labelName
+                callsitetoTypeID[MTailCalllabelName].insert(TypeIdVal);;
+                MCSymbol *MTailLabel = MF.getContext().getOrCreateSymbol(MTailCalllabelName);
+                llvm::MachineInstr* MIptrMTail = &MI;
+                MIptrMTail->setPreInstrSymbol(MF, MTailLabel);
+                errs() <<"TailCallID:" << TailCallID <<"\n";
+                TailCallID ++;
+              } else if (CallSiteInfo->second.isTail) {
+                LLVM_DEBUG(dbgs()<<"IsTailCall"<<"\n";)
+                std::string TailCalllabelName = "tailcallsite_" + std::to_string(TailcallID);
+                // Insert the TypeIdVal into the map under labelName
+                callsitetoTypeID[TailCalllabelName].insert(TypeIdVal);;
+                MCSymbol *TailLabel = MF.getContext().getOrCreateSymbol(TailCalllabelName);
+                llvm::MachineInstr* MIptrTail = &MI;
+                MIptrTail->setPreInstrSymbol(MF, MTailLabel);
+                errs() <<"TailCallID:" << TailCallID <<"\n";
+                TailCallID ++;
+              }
+              else{
+                std::string labelName = "callsite_" + std::to_string(callsiteID);
+                // Insert the TypeIdVal into the map under labelName
+                callsitetoTypeID[labelName].insert(TypeIdVal);;
+                MCSymbol *Label = MF.getContext().getOrCreateSymbol(labelName);
+                llvm::MachineInstr* MIptr = &MI;
+                MIptr->setPreInstrSymbol(MF, Label);
+                errs() <<"CallsiteID:" << callsiteID <<"\n";
+                callsiteID ++;
+              }
           } else {
-            // LLVM_DEBUG(dbgs() << "  No TypeId found for this call site\n");
+
           }
         } else {
-          // LLVM_DEBUG(dbgs() << "  No CallSiteInfo found for this instruction\n");
         }
       }
     }
@@ -112,13 +127,8 @@ if (TypeIdVal != 0) {
 }
 
   // Replace this part in your code:
-    unsigned ReturnCounter = 0;  // Counter for this function only
+unsigned ReturnCounter = 0;  // Counter for this function only
 for (auto &MBB : MF) {
-    // Check if this is not the entry block
-    // if (&MBB == &MF.front()){
-    //   errs() << "entry block" <<"\n";
-    //   errs() << Twine::utohexstr(TypeIdVal)  <<"\n";
-    // }
     if (!MBB.empty() && TypeIdVal != 0) {
         MachineBasicBlock::iterator Terminator = MBB.terminators().begin();
         if (Terminator != MBB.end() && Terminator->isReturn()) {
@@ -143,16 +153,6 @@ for (auto &MBB : MF) {
   return true;
 }
 
-// bool X86LabelIndirectCallTarget::doFinalization() {
-//   for (const auto &Entry : callsitetoTypeID) {
-//     errs() << Entry.first << ":";
-//     for (uint64_t TypeID : Entry.second) {
-//       errs() << " " << Twine::utohexstr(TypeID);
-//     }
-//     errs() << "\n";
-//   }
-//   return false;
-// }
 bool X86LabelIndirectCallTarget::doFinalization(Module &M) {
   errs() << "\n=== Callsite to TypeID Mapping ===\n";
   for (const auto &Entry : callsitetoTypeID) {
