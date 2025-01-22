@@ -2635,8 +2635,8 @@ void CodeGenModule::SetLLVMFunctionAttributesForDefinition(const Decl *D,
 
   // In the cross-dso CFI mode with canonical jump tables, we want !type
   // attributes on definitions only.
-  if (CodeGenOpts.SanitizeCfiCrossDso &&
-      CodeGenOpts.SanitizeCfiCanonicalJumpTables) {
+  if ((CodeGenOpts.SanitizeCfiCrossDso &&
+      CodeGenOpts.SanitizeCfiCanonicalJumpTables)||CodeGenOpts.MatchIndirectCall) {
     if (auto *FD = dyn_cast<FunctionDecl>(D)) {
       // Skip available_externally functions. They won't be codegen'ed in the
       // current module anyway.
@@ -2840,14 +2840,16 @@ static void setLinkageForGV(llvm::GlobalValue *GV, const NamedDecl *ND) {
 
 void CodeGenModule::CreateFunctionTypeMetadataForIcall(const FunctionDecl *FD,
                                                        llvm::Function *F) {
-  bool EmittedMDIdGeneralized = false;
+
+                                                        
+ bool EmittedMDIdGeneralized = false;
   if (CodeGenOpts.MatchIndirectCall &&
       (!F->hasLocalLinkage() ||
-      F->getFunction().hasAddressTaken(nullptr, /* IgnoreCallbackUses= */ true,
-                                        /* IgnoreAssumeLikeCalls= */ true,
-                                        /* IgnoreLLVMUsed =*/ false))) {
-      F->addTypeMetadata(0, CreateMetadataIdentifierGeneralized(FD->getType()));
-    EmittedMDIdGeneralized = true;
+       F->getFunction().hasAddressTaken(nullptr, /*IgnoreCallbackUses=*/true,
+                                        /*IgnoreAssumeLikeCalls=*/true,
+                                        /*IgnoreLLVMUsed=*/false))) {
+    F->addTypeMetadata(0, CreateMetadataIdentifierGeneralized(FD->getType()));
+    EmittedMDIdGeneralized = true;;
   }
 
   // Add additional metadata only if we are checking indirect calls with CFI.
@@ -2863,7 +2865,7 @@ void CodeGenModule::CreateFunctionTypeMetadataForIcall(const FunctionDecl *FD,
   llvm::Metadata *MD = CreateMetadataIdentifierForType(FD->getType());
   F->addTypeMetadata(0, MD);
 
-// Add the generalized identifier if not added already.
+// // Add the generalized identifier if not added already.
   if (!EmittedMDIdGeneralized)
     F->addTypeMetadata(0, CreateMetadataIdentifierGeneralized(FD->getType()));
 
@@ -2872,6 +2874,18 @@ void CodeGenModule::CreateFunctionTypeMetadataForIcall(const FunctionDecl *FD,
     if (auto CrossDsoTypeId = CreateCrossDsoCfiTypeId(MD))
       F->addTypeMetadata(0, llvm::ConstantAsMetadata::get(CrossDsoTypeId));
 }
+
+void CodeGenModule::CreateFunctionTypeMetadataForIcall(const QualType &QT,
+                                                       llvm::CallBase *CB) {
+  // Only if needed for call graph section and only for indirect calls.
+  if (!CodeGenOpts.MatchIndirectCall || !CB || !CB->isIndirectCall())
+    return;
+
+  auto *MD = CreateMetadataIdentifierGeneralized(QT);
+  auto *MDN = llvm::MDNode::get(getLLVMContext(), MD);
+  CB->setMetadata(llvm::LLVMContext::MD_type, MDN);
+}
+
 
 void CodeGenModule::setKCFIType(const FunctionDecl *FD, llvm::Function *F) {
   llvm::LLVMContext &Ctx = F->getContext();

@@ -92,24 +92,34 @@ bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF){
   // Extract TypeId of current function, use it label the function begin address
 const Function &F = MF.getFunction();
 uint64_t FHash = llvm::MD5Hash(F.getName());
-uint64_t TypeIdVal = extractNumericCGTypeId(F);
+bool IsIndirectTarget =
+      !F.hasLocalLinkage() || F.hasAddressTaken(nullptr,
+                                                /*IgnoreCallbackUses=*/true,
+                                                /*IgnoreAssumeLikeCalls=*/true,
+                                                /*IgnoreLLVMUsed=*/false);
+uint64_t TypeIdVal = 0;
+if(IsIndirectTarget) {
+  TypeIdVal = extractNumericCGTypeId(F);
+}
 if (TypeIdVal != 0) {
     bool Inserted = TypeIdSet.insert(TypeIdVal).second;
     if(Inserted) {
       LLVM_DEBUG(dbgs()<<"inserted"<<"\n");
     }
     
+} else{
+  LLVM_DEBUG(dbgs() <<"func name: " << F.getName() << ": TypeIdVal == 0" << "\n");
 }
 
   // Replace this part in your code:
     unsigned ReturnCounter = 0;  // Counter for this function only
 for (auto &MBB : MF) {
     // Check if this is not the entry block
-    if (&MBB == &MF.front()){
-      errs() << "entry block" <<"\n";
-      errs() << Twine::utohexstr(TypeIdVal)  <<"\n";
-    }
-    if (&MBB != &MF.front() && !MBB.empty() && TypeIdVal != 0) {
+    // if (&MBB == &MF.front()){
+    //   errs() << "entry block" <<"\n";
+    //   errs() << Twine::utohexstr(TypeIdVal)  <<"\n";
+    // }
+    if (!MBB.empty() && TypeIdVal != 0) {
         MachineBasicBlock::iterator Terminator = MBB.terminators().begin();
         if (Terminator != MBB.end() && Terminator->isReturn()) {
             SmallString<64> RetLabel;
@@ -118,7 +128,11 @@ for (auto &MBB : MF) {
                                         << "_ret_" << ReturnCounter;
             
             MCSymbol *Label = MF.getContext().getOrCreateSymbol(RetLabel);
-            MBB.begin()->setPreInstrSymbol(MF, Label);
+            if (&MBB == &MF.front()){
+            MBB.begin()->setPostInstrSymbol(MF, Label);
+            } else{
+              MBB.begin()->setPreInstrSymbol(MF,Label);
+            }
             ReturnCounter++;
             
             LLVM_DEBUG(dbgs() << "Added return label in non-entry block: " 
