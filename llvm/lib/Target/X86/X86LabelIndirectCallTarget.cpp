@@ -52,40 +52,35 @@ static uint64_t extractNumericCGTypeId(const Function &F) {
 bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF){
   FunctionInfo FuncInfo;
   const auto &CallSitesInfoMap = MF.getCallSitesInfo();  // Use '.' instead of '->'
-
   const TargetMachine &TM = MF.getTarget();  // Ensure TargetMachine is referenced correctly
+  const Function &F = MF.getFunction();
+  uint64_t FHash = llvm::MD5Hash(F.getName());
+  LLVM_DEBUG(dbgs() <<F.getName() <<"\n");
   for (auto &MBB : MF) {
     for (auto &MI : MBB) {
+      LLVM_DEBUG(dbgs() << MI <<"\n");
+      if (MI.getOpcode() == X86::TCRETURNri64) {
+            SmallString<64> TailJumpLabel;
+            raw_svector_ostream(TailJumpLabel) << "tailcall_" << FHash << "_" << tailCallID;
+            MCSymbol *TailJump = MF.getContext().getOrCreateSymbol(TailJumpLabel);
+         if (&MBB == &MF.front()){
+            MBB.begin()->setPostInstrSymbol(MF, TailJump);
+            } else{
+              MBB.begin()->setPreInstrSymbol(MF,TailJump);
+            }
+      }
+      
+      LLVM_DEBUG(dbgs() <<"MI is call ? " << MI.isCall() <<"\n");
       if (TM.Options.MatchIndirectCall && MI.isCall()) {
         const auto &CallSiteInfo = CallSitesInfoMap.find(&MI);
+
         if (CallSiteInfo != CallSitesInfoMap.end()) {
+          LLVM_DEBUG(dbgs() << "in CallsiteInfo"<<"\n");
           if (auto *TypeId = CallSiteInfo->second.TypeId) {
              // Emit label
                 uint64_t TypeIdVal = TypeId->getZExtValue();  // Can be used later if needed
                 LLVM_DEBUG(dbgs() << " Indirect or tail call target TypeId value: 0x" << Twine::utohexstr(TypeIdVal) << "\n");
                   // Generate labelName based on callsiteID
-              if (CallSiteInfo->second.isMustTail){
-                LLVM_DEBUG(dbgs()<<"IsMustTailCall"<<"\n";)
-                std::string MTailCalllabelName = "tailcallsite_" + std::to_string(TailcallID);
-                // Insert the TypeIdVal into the map under labelName
-                callsitetoTypeID[MTailCalllabelName].insert(TypeIdVal);;
-                MCSymbol *MTailLabel = MF.getContext().getOrCreateSymbol(MTailCalllabelName);
-                llvm::MachineInstr* MIptrMTail = &MI;
-                MIptrMTail->setPreInstrSymbol(MF, MTailLabel);
-                errs() <<"TailCallID:" << TailCallID <<"\n";
-                TailCallID ++;
-              } else if (CallSiteInfo->second.isTail) {
-                LLVM_DEBUG(dbgs()<<"IsTailCall"<<"\n";)
-                std::string TailCalllabelName = "tailcallsite_" + std::to_string(TailcallID);
-                // Insert the TypeIdVal into the map under labelName
-                callsitetoTypeID[TailCalllabelName].insert(TypeIdVal);;
-                MCSymbol *TailLabel = MF.getContext().getOrCreateSymbol(TailCalllabelName);
-                llvm::MachineInstr* MIptrTail = &MI;
-                MIptrTail->setPreInstrSymbol(MF, MTailLabel);
-                errs() <<"TailCallID:" << TailCallID <<"\n";
-                TailCallID ++;
-              }
-              else{
                 std::string labelName = "callsite_" + std::to_string(callsiteID);
                 // Insert the TypeIdVal into the map under labelName
                 callsitetoTypeID[labelName].insert(TypeIdVal);;
@@ -94,19 +89,14 @@ bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF){
                 MIptr->setPreInstrSymbol(MF, Label);
                 errs() <<"CallsiteID:" << callsiteID <<"\n";
                 callsiteID ++;
-              }
-          } else {
-
           }
-        } else {
-        }
+          } 
+        } 
       }
     }
-  }
+
 
   // Extract TypeId of current function, use it label the function begin address
-const Function &F = MF.getFunction();
-uint64_t FHash = llvm::MD5Hash(F.getName());
 bool IsIndirectTarget =
       !F.hasLocalLinkage() || F.hasAddressTaken(nullptr,
                                                 /*IgnoreCallbackUses=*/true,
