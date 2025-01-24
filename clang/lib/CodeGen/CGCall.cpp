@@ -5755,7 +5755,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   AllocAlignAttrEmitter AllocAlignAttrEmitter(*this, TargetDecl, CallArgs);
   Attrs = AllocAlignAttrEmitter.TryEmitAsCallSiteAttribute(Attrs);
 
-  if (CGM.getCodeGenOpts().MatchIndirectCall) {
+  if (CGM.getCodeGenOpts().MatchIndirectCall && !IsMustTail) {
     // FIXME: create operand bundle only for indirect calls, not for all
 
     assert((TargetDecl && TargetDecl->getFunctionType() ||
@@ -5796,7 +5796,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
 
    if (callOrInvoke) {
     *callOrInvoke = CI;
-    if (CI->isIndirectCall() || CI->isTailCall() || CI->isMustTailCall()) {
+    if (CI->isIndirectCall()) {
     if (CGM.getCodeGenOpts().MatchIndirectCall) {
       // Set type identifier metadata of indirect calls for call graph section.
       if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(TargetDecl)) {
