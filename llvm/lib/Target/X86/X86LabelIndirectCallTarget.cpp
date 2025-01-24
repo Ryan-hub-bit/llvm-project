@@ -17,6 +17,22 @@ namespace llvm {
 
 char X86LabelIndirectCallTarget::ID = 0;
 
+
+// Initialize the list of values in the set
+const std::set<uint16_t> X86LabelIndirectCallTarget::TailJumps = X86LabelIndirectCallTarget::initializeTailJumps();
+
+// Helper function to populate the set
+std::set<uint16_t> X86LabelIndirectCallTarget::initializeTailJumps() {
+    return {
+        4950, // TAILJMPm
+        4951, // TAILJMPm64
+        4952, // TAILJMPm64_REX
+        4953, // TAILJMPr
+        4954, // TAILJMPr64
+        4955  // TAILJMPr64_REX
+    };
+}
+
 StringRef X86LabelIndirectCallTarget::getPassName() const {
   return "X86 Label Indirect Call Target Pass";
 }
@@ -50,33 +66,35 @@ static uint64_t extractNumericCGTypeId(const Function &F) {
 
 
 bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF){
-  FunctionInfo FuncInfo;
   const auto &CallSitesInfoMap = MF.getCallSitesInfo();  // Use '.' instead of '->'
 
   const TargetMachine &TM = MF.getTarget();  // Ensure TargetMachine is referenced correctly
   for (auto &MBB : MF) {
     for (auto &MI : MBB) {
       if (TM.Options.MatchIndirectCall && MI.isCall()) {
-        //Indirect tail call instruction for indirect jump 
-        //TAILJMPm    = 4950,
-        //TAILJMPm64    = 4951,
-        //TAILJMPm64_REX    = 4952,
-        //TAILJMPr    = 4953,
-        //TAILJMPr64    = 4954,
-        //TAILJMPr64_REX    = 4955
+
+        
         LLVM_DEBUG(MI.print(dbgs()));
         LLVM_DEBUG(dbgs() <<"MI opcode:" << MI.getOpcode() << "\n");
         const auto &CallSiteInfo = CallSitesInfoMap.find(&MI);
         if (CallSiteInfo != CallSitesInfoMap.end()) {
-          // LLVM_DEBUG(dbgs() << "  Found CallSiteInfo entry\n");
-          
-          if (auto *TypeId = CallSiteInfo->second.TypeId) {
-            // Emit label
-            uint64_t TypeIdVal = TypeId->getZExtValue();  // Can be used later if needed
-            LLVM_DEBUG(dbgs() << "  TypeId value: 0x" << Twine::utohexstr(TypeIdVal) << "\n");
                // Generate labelName based on callsiteID
+          if (auto *TypeId = CallSiteInfo->second.TypeId) {
+          // LLVM_DEBUG(dbgs() << "  Found CallSiteInfo entry\n");
+          uint64_t TypeIdVal = TypeId->getZExtValue();  // Can be used later if needed
+          // Emit label
+          LLVM_DEBUG(dbgs() << "  TypeId value: 0x" << Twine::utohexstr(TypeIdVal) << "\n");
+          if (X86LabelIndirectCallTarget::TailJumps.count(MI.getOpcode())) {
+            std::string labelName = "tailcallsite_" + std::to_string(tailcallID);
+            // Insert the TypeIdVal into the map under labelName
+            callsitetoTypeID[labelName].insert(TypeIdVal);;
+            MCSymbol *Label = MF.getContext().getOrCreateSymbol(labelName);
+            llvm::MachineInstr* MIptr = &MI;
+            MIptr->setPostInstrSymbol(MF, Label);
+            errs() <<"tailcallID:" << tailcallID <<"\n";
+            tailcallID ++;
+            }else {
             std::string labelName = "callsite_" + std::to_string(callsiteID);
-
             // Insert the TypeIdVal into the map under labelName
             callsitetoTypeID[labelName].insert(TypeIdVal);;
             MCSymbol *Label = MF.getContext().getOrCreateSymbol(labelName);
@@ -84,6 +102,7 @@ bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF){
             MIptr->setPostInstrSymbol(MF, Label);
             errs() <<"CallsiteID:" << callsiteID <<"\n";
             callsiteID ++;
+            }
           } else {
             // LLVM_DEBUG(dbgs() << "  No TypeId found for this call site\n");
           }
