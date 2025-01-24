@@ -57,10 +57,15 @@ bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF){
   for (auto &MBB : MF) {
     for (auto &MI : MBB) {
       if (TM.Options.MatchIndirectCall && MI.isCall()) {
-        // LLVM_DEBUG(dbgs() << "Found call instruction: ");
-        // LLVM_DEBUG(MI.print(dbgs()));
-        // LLVM_DEBUG(dbgs() << "\n");
-
+        //Indirect tail call instruction for indirect jump 
+        //TAILJMPm    = 4950,
+        //TAILJMPm64    = 4951,
+        //TAILJMPm64_REX    = 4952,
+        //TAILJMPr    = 4953,
+        //TAILJMPr64    = 4954,
+        //TAILJMPr64_REX    = 4955
+        LLVM_DEBUG(MI.print(dbgs()));
+        LLVM_DEBUG(dbgs() <<"MI opcode:" << MI.getOpcode() << "\n");
         const auto &CallSiteInfo = CallSitesInfoMap.find(&MI);
         if (CallSiteInfo != CallSitesInfoMap.end()) {
           // LLVM_DEBUG(dbgs() << "  Found CallSiteInfo entry\n");
@@ -76,7 +81,7 @@ bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF){
             callsitetoTypeID[labelName].insert(TypeIdVal);;
             MCSymbol *Label = MF.getContext().getOrCreateSymbol(labelName);
             llvm::MachineInstr* MIptr = &MI;
-            MIptr->setPreInstrSymbol(MF, Label);
+            MIptr->setPostInstrSymbol(MF, Label);
             errs() <<"CallsiteID:" << callsiteID <<"\n";
             callsiteID ++;
           } else {
