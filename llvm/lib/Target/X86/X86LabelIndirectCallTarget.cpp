@@ -1,4 +1,3 @@
-
 #include "X86LabelIndirectCallTarget.h"
 #include "X86.h"
 #include "X86InstrInfo.h"
@@ -20,6 +19,7 @@ using namespace llvm;
 // Function retID
 // Function name
 // Function signature
+// label offset
 #define DEBUG_TYPE "x86-label-indirect-call"
 
 namespace llvm {
@@ -76,17 +76,18 @@ bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF) {
     const auto &CallSitesInfoMap = MF.getCallSitesInfo();  // Use '.' instead of '->'
     const TargetMachine &TM = MF.getTarget();  // Ensure TargetMachine is referenced correctly
     bool recordnext = false;
-
+    uint64_t lastTypeId = 0;
 
     for (auto &MBB : MF) {
         for (auto &MI : MBB) {
             if(recordnext) {
                 std::string nextLabel = "callsite_" + std::to_string(callsiteID) + "_next";
-                callsitetoTypeID[nextLabel].insert(TypeIdVal);
+                typeIdtocallsitenext[lastTypeId].insert(nextLabel);
                 MCSymbol *Label = MF.getContext().getOrCreateSymbol(nextLabel);
                 llvm::MachineInstr* MIptr = &MI;
-                MIptr->setPostInstrSymbol(MF, Label);
+                MIptr->setPreInstrSymbol(MF, Label);
                 errs() << "CallsiteID:" << callsiteID << "_next"<<"\n";
+                recordnext = false;
             }
             if (TM.Options.MatchIndirectCall && MI.isCall()) {
                 LLVM_DEBUG(MI.print(dbgs()));
@@ -98,13 +99,13 @@ bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF) {
                     if (auto *TypeId = CallSiteInfo->second.TypeId) {
                         uint64_t TypeIdVal = TypeId->getZExtValue();  // Can be used later if needed
                         LLVM_DEBUG(dbgs() << "  TypeId value: 0x" << Twine::utohexstr(TypeIdVal) << "\n");
-                        
+                        lastTypeId = TypeIdVal;
                         if (X86LabelIndirectCallTarget::TailJumps.count(MI.getOpcode())) {
                             std::string labelName = "tailcallsite_" + std::to_string(tailcallID);
                             callsitetoTypeID[labelName].insert(TypeIdVal);
                             MCSymbol *Label = MF.getContext().getOrCreateSymbol(labelName);
                             llvm::MachineInstr* MIptr = &MI;
-                            MIptr->setPostInstrSymbol(MF, Label);
+                            MIptr->setPreInstrSymbol(MF, Label);
                             errs() << "tailcallID:" << tailcallID << "\n";
                             tailcallID++;
                         } else {
@@ -112,9 +113,10 @@ bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF) {
                             callsitetoTypeID[labelName].insert(TypeIdVal);
                             MCSymbol *Label = MF.getContext().getOrCreateSymbol(labelName);
                             llvm::MachineInstr* MIptr = &MI;
-                            MIptr->setPostInstrSymbol(MF, Label);
+                            MIptr->setPreInstrSymbol(MF, Label);
                             errs() << "CallsiteID:" << callsiteID << "\n";
                             callsiteID++;
+                            recordnext = true;
                         }
                     }
                 }
@@ -157,7 +159,7 @@ bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF) {
                 
                 MCSymbol *Label = MF.getContext().getOrCreateSymbol(RetLabel);
                 if (&MBB == &MF.front()) {
-                    MBB.begin()->setPostInstrSymbol(MF, Label);
+                    MBB.begin()->setPreInstrSymbol(MF, Label);
                 } else {
                     MBB.begin()->setPreInstrSymbol(MF, Label);
                 }
@@ -177,6 +179,14 @@ bool X86LabelIndirectCallTarget::doFinalization(Module &M) {
         errs() << Entry.getKey() << ":";
         for (uint64_t TypeID : Entry.second) {
             errs() << " " << Twine::utohexstr(TypeID);
+        }
+        errs() << "\n";
+    }
+    errs() << "\n=== TypeID to callsite next Mapping ===\n";
+    for (const auto &Entry : typeIdtocallsitenext) {
+        errs() << Entry.first << ":";
+        for (const std::string &callsite_next : Entry.second) {
+            errs() << " " << callsite_next;
         }
         errs() << "\n";
     }

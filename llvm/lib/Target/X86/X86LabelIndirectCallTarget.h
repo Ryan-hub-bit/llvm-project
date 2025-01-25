@@ -12,6 +12,9 @@
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/ADT/SmallSet.h"  // To use SmallSet or std::set for storing TypeIdVal
 #include "llvm/ADT/StringMap.h"  // To use StringMap for storing labelName -> TypeI
+#include <map>
+#include <set>
+#include <string>
 
 namespace llvm {
 
@@ -35,7 +38,7 @@ private:
     SmallSet<uint64_t, 16> TypeIdSet;  // Add this line
       // Map to store labelName -> set of TypeIdVal
   StringMap<SmallSet<uint64_t, 4>> callsitetoTypeID;
-  StringMap<SmallSet<uint64_t, 4>> typeIdtocallsitenext;
+  std::map<uint64_t, std::set<std::string>> typeIdtocallsitenext;
   // bool processIndirectCall(MachineBasicBlock &MBB,
                           // MachineBasicBlock::iterator MBBI);
 };
