@@ -35,6 +35,7 @@ private:
     SmallSet<uint64_t, 16> TypeIdSet;  // Add this line
       // Map to store labelName -> set of TypeIdVal
   StringMap<SmallSet<uint64_t, 4>> callsitetoTypeID;
+  StringMap<SmallSet<uint64_t, 4>> typeIdtocallsitenext;
   // bool processIndirectCall(MachineBasicBlock &MBB,
                           // MachineBasicBlock::iterator MBBI);
 };
