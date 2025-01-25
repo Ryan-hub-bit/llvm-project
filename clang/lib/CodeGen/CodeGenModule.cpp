@@ -2875,18 +2875,6 @@ void CodeGenModule::CreateFunctionTypeMetadataForIcall(const FunctionDecl *FD,
       F->addTypeMetadata(0, llvm::ConstantAsMetadata::get(CrossDsoTypeId));
 }
 
-void CodeGenModule::CreateFunctionTypeMetadataForIcall(const QualType &QT,
-                                                       llvm::CallBase *CB) {
-  // Only if needed for call graph section and only for indirect calls.
-  if (!CodeGenOpts.MatchIndirectCall || !CB || !CB->isIndirectCall())
-    return;
-
-  auto *MD = CreateMetadataIdentifierGeneralized(QT);
-  auto *MDN = llvm::MDNode::get(getLLVMContext(), MD);
-  CB->setMetadata(llvm::LLVMContext::MD_type, MDN);
-}
-
-
 void CodeGenModule::setKCFIType(const FunctionDecl *FD, llvm::Function *F) {
   llvm::LLVMContext &Ctx = F->getContext();
   llvm::MDBuilder MDB(Ctx);

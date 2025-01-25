@@ -5755,7 +5755,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   AllocAlignAttrEmitter AllocAlignAttrEmitter(*this, TargetDecl, CallArgs);
   Attrs = AllocAlignAttrEmitter.TryEmitAsCallSiteAttribute(Attrs);
 
-  if (CGM.getCodeGenOpts().MatchIndirectCall) {
+  if (CGM.getCodeGenOpts().MatchIndirectCall && !IsMustTail) {
     // FIXME: create operand bundle only for indirect calls, not for all
 
     assert((TargetDecl && TargetDecl->getFunctionType() ||

@@ -254,7 +254,7 @@ static bool markTails(Function &F, OptimizationRemarkEmitter *ORE) {
       bool IsNoTail = CI->isNoTailCall() ||
                       CI->hasOperandBundlesOtherThan(
                           {LLVMContext::OB_clang_arc_attachedcall,
-                           LLVMContext::OB_ptrauth, LLVMContext::OB_kcfi});
+                           LLVMContext::OB_ptrauth, LLVMContext::OB_kcfi,LLVMContext::OB_type});
 
       if (!IsNoTail && CI->doesNotAccessMemory()) {
         // A call to a readnone function whose arguments are all things computed
