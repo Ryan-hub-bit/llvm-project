@@ -1615,6 +1615,9 @@ public:
   /// Create and attach type metadata to the given function.
   void CreateFunctionTypeMetadataForIcall(const FunctionDecl *FD,
                                           llvm::Function *F);
+    /// Create and attach type metadata to the given call.
+  void CreateFunctionTypeMetadataForIcall(const QualType &QT,
+                                          llvm::CallBase *CB);
 
   /// Set type metadata to the given function.
   void setKCFIType(const FunctionDecl *FD, llvm::Function *F);

@@ -5063,6 +5063,11 @@ static unsigned getMaxVectorWidth(const llvm::Type *Ty) {
   return MaxVectorWidth;
 }
 
+static bool isCXXDeclType(const FunctionDecl *FD) {
+  return isa<CXXConstructorDecl>(FD) || isa<CXXMethodDecl>(FD) ||
+         isa<CXXDestructorDecl>(FD);
+}
+
 RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
                                  const CGCallee &Callee,
                                  ReturnValueSlot ReturnValue,
@@ -5750,6 +5755,30 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   AllocAlignAttrEmitter AllocAlignAttrEmitter(*this, TargetDecl, CallArgs);
   Attrs = AllocAlignAttrEmitter.TryEmitAsCallSiteAttribute(Attrs);
 
+  if (CGM.getCodeGenOpts().MatchIndirectCall && !IsMustTail) {
+    // FIXME: create operand bundle only for indirect calls, not for all
+
+    assert((TargetDecl && TargetDecl->getFunctionType() ||
+            Callee.getAbstractInfo().getCalleeFunctionProtoType()) &&
+           "cannot find callee type");
+
+    //FunctionType here can be treat as the signature of the function
+    QualType CST;
+    if (TargetDecl && TargetDecl->getFunctionType())
+    // Second argument (0): Specifies no additional qualifiers (e.g., not const or volatile).
+      CST = QualType(TargetDecl->getFunctionType(), 0);
+    else if (const auto *FPT =
+                 Callee.getAbstractInfo().getCalleeFunctionProtoType())
+      CST = QualType(FPT, 0);
+
+    if (!CST.isNull()) {
+      auto *TypeIdMD = CGM.CreateMetadataIdentifierGeneralized(CST);
+      auto *TypeIdMDVal =
+          llvm::MetadataAsValue::get(getLLVMContext(), TypeIdMD);
+      BundleList.emplace_back("type", TypeIdMDVal);
+    }
+  }
+
   // Emit the actual call/invoke instruction.
   llvm::CallBase *CI;
   if (!InvokeDest) {
@@ -5764,8 +5793,22 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       CI->getCalledFunction()->getName().starts_with("_Z4sqrt")) {
     SetSqrtFPAccuracy(CI);
   }
-  if (callOrInvoke)
+
+   if (callOrInvoke) {
     *callOrInvoke = CI;
+    if (CI->isIndirectCall()) {
+    if (CGM.getCodeGenOpts().MatchIndirectCall) {
+      // Set type identifier metadata of indirect calls for call graph section.
+      if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(TargetDecl)) {
+        // Type id metadata is set only for C/C++ contexts.
+        if (isCXXDeclType(FD)) {
+          CGM.CreateFunctionTypeMetadataForIcall(FD->getType(), *callOrInvoke);
+        }
+      }
+    }
+  }
+   }
+ 
 
   // If this is within a function that has the guard(nocf) attribute and is an
   // indirect call, add the "guard_nocf" attribute to this call to indicate that

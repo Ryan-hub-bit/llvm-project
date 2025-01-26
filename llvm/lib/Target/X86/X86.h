@@ -102,6 +102,8 @@ FunctionPass *createX86PreTileConfigPass();
 /// Return a pass that lower the tile copy instruction.
 FunctionPass *createX86LowerTileCopyPass();
 
+ FunctionPass *createX86LabelIndirectCallTargetPass();
+
 /// Return a pass that inserts int3 at the end of the function if it ends with a
 /// CALL instruction. The pass does the same for each funclet as well. This
 /// ensures that the open interval of function start and end PCs contains all
