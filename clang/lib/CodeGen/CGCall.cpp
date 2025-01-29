@@ -5774,16 +5774,6 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       auto *TypeIdMD = CGM.CreateMetadataIdentifierGeneralized(CST);
       auto *TypeIdMDVal =
           llvm::MetadataAsValue::get(getLLVMContext(), TypeIdMD);
-      if (const Decl *D = Callee.getAbstractInfo().getCalleeDecl().getDecl()) {
-    if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
-        // Your own function if:
-        // 1. NOT in std namespace AND
-        // 2. NOT in system header
-        bool isUserFunction = !FD->getDeclContext()->isStdNamespace() && 
-                            !getSourceManager().isInSystemHeader(FD->getLocation());
-
-    }
-} 
       BundleList.emplace_back("type", TypeIdMDVal);
     }
   }
