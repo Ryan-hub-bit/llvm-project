@@ -77,33 +77,7 @@ bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF) {
     const TargetMachine &TM = MF.getTarget();  // Ensure TargetMachine is referenced correctly
     bool recordnext = false;
     uint64_t lastTypeId = 0;
-    //logic for direct call
-     for (auto &MBB : MF) {
-        for (auto &MI : MBB) {
-            if (MI.getOpcode() == X86::CALL64pcrel32 || MI.getOpcode() == X86::CALL32pcrel32) {
-                   const MachineOperand &CalleeOp = MI.getOperand(0); // Operand points to the callee
-                    if (CalleeOp.isGlobal()) {
-                        const Function *CalleeFunction = dyn_cast<Function>(CalleeOp.getGlobal());
-                        //const Function *CalleeFunction = CalleeOp.getGlobal();
-                        if (CalleeFunction && CalleeFunction->empty()) {
-                            errs() << "Skipping external library call: " << CalleeFunction->getName() << "\n";
-                            continue;
-                        }
-                        errs() <<"callFunction:" << CalleeFunction->getName() << "\n";
-                        const MachineFunction *MF = MFInfo->getMachineFunction(*CalleeFunction);
-                        for (const MachineBasicBlock &MBB : *MF) { // Traverse basic blocks of the callee
-                            for (const MachineInstr &Instr : MBB) { // Traverse instructions
-                                if (Instr.getOpcode() == X86::RETQ) { // Check for RET instruction
-                                    errs() << "RET instruction found at: " << Instr.getDebugLoc() << "\n";
-                                }
-                            }
-                        }
-                    }
-            }
-        }
-     }
-
-    //logic for tail call and indirect call
+     //logic for tail call and indirect call
     for (auto &MBB : MF) {
         for (auto &MI : MBB) {
             if(recordnext) {

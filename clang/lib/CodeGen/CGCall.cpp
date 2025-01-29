@@ -5755,8 +5755,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   AllocAlignAttrEmitter AllocAlignAttrEmitter(*this, TargetDecl, CallArgs);
   Attrs = AllocAlignAttrEmitter.TryEmitAsCallSiteAttribute(Attrs);
 
-  if (CGM.getCodeGenOpts().MatchIndirectCall && !IsMustTail) {
-    // FIXME: create operand bundle only for indirect calls, not for all
+  if (CGM.getCodeGenOpts().MatchIndirectCall) {
 
     assert((TargetDecl && TargetDecl->getFunctionType() ||
             Callee.getAbstractInfo().getCalleeFunctionProtoType()) &&
@@ -5775,6 +5774,16 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       auto *TypeIdMD = CGM.CreateMetadataIdentifierGeneralized(CST);
       auto *TypeIdMDVal =
           llvm::MetadataAsValue::get(getLLVMContext(), TypeIdMD);
+      if (const Decl *D = Callee.getAbstractInfo().getCalleeDecl().getDecl()) {
+    if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
+        // Your own function if:
+        // 1. NOT in std namespace AND
+        // 2. NOT in system header
+        bool isUserFunction = !FD->getDeclContext()->isStdNamespace() && 
+                            !getSourceManager().isInSystemHeader(FD->getLocation());
+
+    }
+} 
       BundleList.emplace_back("type", TypeIdMDVal);
     }
   }
