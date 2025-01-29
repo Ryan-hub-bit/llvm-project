@@ -5775,7 +5775,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       auto *TypeIdMD = CGM.CreateMetadataIdentifierGeneralized(CST);
       auto *TypeIdMDVal =
           llvm::MetadataAsValue::get(getLLVMContext(), TypeIdMD);
-      BundleList.emplace_back("type", TypeIdMDVal);
+      // BundleList.emplace_back("type", TypeIdMDVal);
     }
   }
 
