@@ -5067,6 +5067,40 @@ static bool isCXXDeclType(const FunctionDecl *FD) {
   return isa<CXXConstructorDecl>(FD) || isa<CXXMethodDecl>(FD) ||
          isa<CXXDestructorDecl>(FD);
 }
+// static bool isIndirectCall(const CGCallee &Callee) {
+//   if (!Callee.isOrdinary()) {
+//     return false; // Not a normal function call (could be built-in, virtual, etc.)
+//   }
+
+// llvm::Value *FuncPtr = Callee.getFunctionPointer();
+// if (!FuncPtr) {
+//     // llvm::errs() << "Error: Function pointer is null\n";
+//     return false;
+// }
+
+// // Remove bitcasts and other unnecessary casts
+// FuncPtr = FuncPtr->stripPointerCasts();
+
+// // Handle function pointers stored in memory (e.g., from LoadInst)
+// if (llvm::LoadInst *LI = llvm::dyn_cast<llvm::LoadInst>(FuncPtr)) {
+//     FuncPtr = LI->getPointerOperand();
+// }
+
+// // Check if the function pointer is an actual function or not
+// bool indirect = !llvm::isa<llvm::Function>(FuncPtr);
+
+// // llvm::errs() << "Callee: " << *FuncPtr << " is " << (indirect ? "Indirect" : "Direct") << "\n";
+// return indirect;
+// }
+
+static bool isIndirectCall(const CGCallee &Callee) {
+  if (!Callee.isOrdinary()) {
+    return false; // Not a normal function call (could be built-in, virtual, etc.)
+  }
+ 
+  llvm::Value *FuncPtr = Callee.getFunctionPointer();
+  return !llvm::isa<llvm::Function>(FuncPtr); // Indirect if not a direct function
+}
 
 RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
                                  const CGCallee &Callee,
@@ -5755,12 +5789,11 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   AllocAlignAttrEmitter AllocAlignAttrEmitter(*this, TargetDecl, CallArgs);
   Attrs = AllocAlignAttrEmitter.TryEmitAsCallSiteAttribute(Attrs);
 
-  if (CGM.getCodeGenOpts().MatchIndirectCall) {
+  if (CGM.getCodeGenOpts().MatchIndirectCall && isIndirectCall(Callee)) {
 
     assert((TargetDecl && TargetDecl->getFunctionType() ||
             Callee.getAbstractInfo().getCalleeFunctionProtoType()) &&
            "cannot find callee type");
-
     //FunctionType here can be treat as the signature of the function
     QualType CST;
     if (TargetDecl && TargetDecl->getFunctionType())
