@@ -20,6 +20,7 @@ using namespace llvm;
 // Function name
 // Function signature
 // label offset
+// callsite_ID_next
 #define DEBUG_TYPE "x86-label-indirect-call"
 
 namespace llvm {
@@ -164,9 +165,22 @@ bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF) {
                     MBB.begin()->setPreInstrSymbol(MF, Label);
                 }
                 ReturnCounter++;
+                //test if I can create multiple label name for an instruction
+                // SmallString<64> RetLabel2;
+                // raw_svector_ostream(RetLabel2) << "func_" << FHash << "_"
+                //                             << Twine::utohexstr(TypeIdVal) 
+                //                             << "_ret_" << ReturnCounter;
+                // MCSymbol *Label2 = MF.getContext().getOrCreateSymbol(RetLabel2);
+                // if (&MBB == &MF.front()) {
+                //     MBB.begin()->setPreInstrSymbol(MF, Label2);
+                // } else {
+                //     MBB.begin()->setPreInstrSymbol(MF, Label2);
+                // }
+
+                // ReturnCounter++;
                 
-                LLVM_DEBUG(dbgs() << "Added return label in non-entry block: " 
-                                 << RetLabel << "\n");
+                // LLVM_DEBUG(dbgs() << "Added return label in non-entry block: " 
+                                //  << RetLabel << "\n");
             }
         }
     }

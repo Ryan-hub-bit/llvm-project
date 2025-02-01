@@ -5067,31 +5067,6 @@ static bool isCXXDeclType(const FunctionDecl *FD) {
   return isa<CXXConstructorDecl>(FD) || isa<CXXMethodDecl>(FD) ||
          isa<CXXDestructorDecl>(FD);
 }
-// static bool isIndirectCall(const CGCallee &Callee) {
-//   if (!Callee.isOrdinary()) {
-//     return false; // Not a normal function call (could be built-in, virtual, etc.)
-//   }
-
-// llvm::Value *FuncPtr = Callee.getFunctionPointer();
-// if (!FuncPtr) {
-//     // llvm::errs() << "Error: Function pointer is null\n";
-//     return false;
-// }
-
-// // Remove bitcasts and other unnecessary casts
-// FuncPtr = FuncPtr->stripPointerCasts();
-
-// // Handle function pointers stored in memory (e.g., from LoadInst)
-// if (llvm::LoadInst *LI = llvm::dyn_cast<llvm::LoadInst>(FuncPtr)) {
-//     FuncPtr = LI->getPointerOperand();
-// }
-
-// // Check if the function pointer is an actual function or not
-// bool indirect = !llvm::isa<llvm::Function>(FuncPtr);
-
-// // llvm::errs() << "Callee: " << *FuncPtr << " is " << (indirect ? "Indirect" : "Direct") << "\n";
-// return indirect;
-// }
 
 static bool isIndirectCall(const CGCallee &Callee) {
   if (!Callee.isOrdinary()) {
