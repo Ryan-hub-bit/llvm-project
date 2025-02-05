@@ -23,55 +23,56 @@ void initializeX86MatchJumptablePassPass(PassRegistry &Registry) {
 
 bool X86MatchJumptablePass::runOnMachineFunction(MachineFunction &MF) {
    
-    Function &F = MF.getFunction();
+    // Function &F = MF.getFunction();
 
-    // LLVM_DEBUG(dbgs() << "Function address: " << FuncAddr << "\n");
+    // // LLVM_DEBUG(dbgs() << "Function address: " << FuncAddr << "\n");
 
-    // Process jump tables
-    MachineJumpTableInfo *JumpTableInfo = MF.getJumpTableInfo();
-    if (!JumpTableInfo) {
-        // LLVM_DEBUG(dbgs() << "No jump tables in this function.\n");
-        return false;
-    }
+    // // Process jump tables
+    // MachineJumpTableInfo *JumpTableInfo = MF.getJumpTableInfo();
+    // if (!JumpTableInfo) {
+    //     // LLVM_DEBUG(dbgs() << "No jump tables in this function.\n");
+    //     return false;
+    // }
 
-    bool Modified = false;
-    //  LLVM_DEBUG(dbgs() << "Jump Table Size#" << JumpTableInfo->getJumpTables().size() << "\n");
+    // bool Modified = false;
+    // //  LLVM_DEBUG(dbgs() << "Jump Table Size#" << JumpTableInfo->getJumpTables().size() << "\n");
     
-    for (unsigned JTIndex = 0; JTIndex < JumpTableInfo->getJumpTables().size(); ++JTIndex) {
-    const MachineJumpTableEntry &JTEntry = JumpTableInfo->getJumpTables()[JTIndex];
-    // LLVM_DEBUG(dbgs() << "FuncAddr:" << FuncAddr << "Jump Table #" << JTIndex << " contains " 
-                    //   << JTEntry.MBBs.size() << " entries.\n");
+    // for (unsigned JTIndex = 0; JTIndex < JumpTableInfo->getJumpTables().size(); ++JTIndex) {
+    // const MachineJumpTableEntry &JTEntry = JumpTableInfo->getJumpTables()[JTIndex];
+    // // LLVM_DEBUG(dbgs() << "FuncAddr:" << FuncAddr << "Jump Table #" << JTIndex << " contains " 
+    //                 //   << JTEntry.MBBs.size() << " entries.\n");
     
-    // Handle indirect jump instruction
-    MachineInstr *indirectJumpInstr = traceIndirectJumps(MF, JTIndex, JumpTableInfo);
-    if (indirectJumpInstr) {
-        // Create label for indirect jump
-        std::string LabelName =  std::to_string(RunCount) + "_IJUMP_" + std::to_string(JTIndex);
-        MCSymbol *Label = MF.getContext().getOrCreateSymbol(LabelName);
-        indirectJumpInstr->setPreInstrSymbol(MF, Label);
-        if (MaxEntrySize < JTEntry.MBBs.size()) {
-            MaxEntrySize = JTEntry.MBBs.size();
-        }
-        for (unsigned EntryIndex = 0; EntryIndex < JTEntry.MBBs.size(); ++EntryIndex) {
-            MachineBasicBlock *TargetMBB = JTEntry.MBBs[EntryIndex];
-            if (!TargetMBB->empty()) {
-            std::string EntryLabelName = std::to_string(RunCount) + "_JTENTRY_" + std::to_string(JTIndex) + "_" + std::to_string(EntryIndex);
-            MCSymbol *EntryLabel = MF.getContext().getOrCreateSymbol(EntryLabelName);
+    // // Handle indirect jump instruction
+    // MachineInstr *indirectJumpInstr = traceIndirectJumps(MF, JTIndex, JumpTableInfo);
+    // if (indirectJumpInstr) {
+    //     // Create label for indirect jump
+    //     std::string LabelName =  std::to_string(RunCount) + "_IJUMP_" + std::to_string(JTIndex);
+    //     MCSymbol *Label = MF.getContext().getOrCreateSymbol(LabelName);
+    //     indirectJumpInstr->setPreInstrSymbol(MF, Label);
+    //     if (MaxEntrySize < JTEntry.MBBs.size()) {
+    //         MaxEntrySize = JTEntry.MBBs.size();
+    //     }
+    //     for (unsigned EntryIndex = 0; EntryIndex < JTEntry.MBBs.size(); ++EntryIndex) {
+    //         MachineBasicBlock *TargetMBB = JTEntry.MBBs[EntryIndex];
+    //         if (!TargetMBB->empty()) {
+    //         std::string EntryLabelName = std::to_string(RunCount) + "_JTENTRY_" + std::to_string(JTIndex) + "_" + std::to_string(EntryIndex);
+    //         MCSymbol *EntryLabel = MF.getContext().getOrCreateSymbol(EntryLabelName);
             
-            // Set label only on first instruction
-            MachineInstr &FirstInstr = TargetMBB->front();
-            FirstInstr.setPreInstrSymbol(MF, EntryLabel);
+    //         // Set label only on first instruction
+    //         MachineInstr &FirstInstr = TargetMBB->front();
+    //         FirstInstr.setPreInstrSymbol(MF, EntryLabel);
             
-            // LLVM_DEBUG(dbgs() << "Created label for jump table entry: " << EntryLabelName << "\n");
-        }
-        }
-        RunCount ++;
-    }
-        Modified = true;
-    }
+    //         // LLVM_DEBUG(dbgs() << "Created label for jump table entry: " << EntryLabelName << "\n");
+    //     }
+    //     }
+    //     RunCount ++;
+    // }
+    //     Modified = true;
+    // }
 
 
-    return Modified;
+    // return Modified;
+    return false;
 }
 
 
