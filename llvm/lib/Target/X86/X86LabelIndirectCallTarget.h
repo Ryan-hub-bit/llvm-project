@@ -16,6 +16,7 @@
 #include <set>
 #include <string>
 
+
 #include "MCTargetDesc/X86MCTargetDesc.h"
 #include "X86.h"
 #include "X86InstrInfo.h"
@@ -29,7 +30,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
-
+#include <sstream>
 
 namespace llvm {
 
@@ -39,7 +40,7 @@ class X86Subtarget;
 class X86LabelIndirectCallTarget : public MachineFunctionPass {
 public:
   static char ID;
-  X86LabelIndirectCallTarget() : MachineFunctionPass(ID),callsiteID(0),tailcallID(0), RunCount(0), MaxEntrySize(0){}
+  X86LabelIndirectCallTarget() : MachineFunctionPass(ID),callsiteID(1),tailcallID(1), RunCount(1), MaxEntrySize(0){}
   bool doFinalization(Module &M) override;
   StringRef getPassName() const override;
   bool runOnMachineFunction(MachineFunction &MF) override;

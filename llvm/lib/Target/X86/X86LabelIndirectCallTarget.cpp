@@ -7,9 +7,9 @@
 #include "llvm/IR/Function.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Target/TargetMachine.h"
-
 #include "X86.h"
 #include "X86InstrInfo.h"
+#include <sstream>
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/PassRegistry.h"
@@ -71,36 +71,187 @@ static uint64_t extractNumericCGTypeId(const Function &F) {
             }
         }
     }
-    
     if (!MDGeneralizedTypeId) {
-        errs() << "warning: can't find indirect target type id metadata "
-               << "for " << F.getName() << "\n";
         return 0;  // Return 0 instead of nullptr
     }
-    
     // Directly return the hash value
     return llvm::MD5Hash(MDGeneralizedTypeId->getString());
 }
 
-static std::string initializeLabel() {
-    std::string result = "s";
+static const std::string& initializeLabel() {
+    static std::string result = "s";
+    // Only initialize if this is the first call
+    static bool initialized = false;
+    if (!initialized) {
+        // Add elements 2-5 (four zeros)
+        for(int i = 0; i < 4; i++) {
+            result += "-0";
+        }
+        // Add element 6 ('t')
+        result += "-t";
+        // Add elements 7-10 (four more zeros)
+        for(int i = 0; i < 4; i++) {
+            result += "-0";
+        }
+        // Add the final element
+        result += "-type";
+        initialized = true;
+    }
+    return result;
+}
+
+std::string modifyJumptableLabel(const std::string& originalStr, int value1) {
+    std::vector<std::string> elements;
+    std::string temp;
     
-    // Add elements 2-5 (four zeros)
-    for(int i = 0; i < 4; i++) {
-        result += "-0";
+    // Split the original string by '-'
+    for(char c : originalStr) {
+        if(c == '-') {
+            elements.push_back(temp);
+            temp.clear();
+        } else {
+            temp += c;
+        }
+    }
+    // Don't forget to add the last element
+    elements.push_back(temp);
+    
+    // Modify only second and third elements
+    if(elements.size() >= 2) {
+        elements[1] = std::to_string(value1);
     }
     
-    // Add element 6 ('t')
-    result += "-t";
-    
-    // Add elements 7-10 (four more zeros)
-    for(int i = 0; i < 4; i++) {
-        result += "-0";
+    // Reconstruct the string
+    std::string result = elements[0];
+    for(size_t i = 1; i < elements.size(); i++) {
+        result += "-" + elements[i];
     }
     
-    // Add the final element
-    result += "-type";
+    return result;
+}
+
+std::string modifyJumpEntry(const std::string& originalStr, int value1, int value2) {
+    std::vector<std::string> elements;
+    std::string temp;
     
+    // Split the original string by '-'
+    for(char c : originalStr) {
+        if(c == '-') {
+            elements.push_back(temp);
+            temp.clear();
+        } else {
+            temp += c;
+        }
+    }
+    // Don't forget to add the last element
+    elements.push_back(temp);
+
+    // Modify only seventh and eighth elements (index 6 and 7)
+    if(elements.size() >= 8) {
+        elements[6] = std::to_string(value1);
+        elements[7] = std::to_string(value2);
+    }
+    
+    // Reconstruct the string
+    std::string result = elements[0];
+    for(size_t i = 1; i < elements.size(); i++) {
+        result += "-" + elements[i];
+    }
+    return result;
+}
+std::string modifyTailcallSource(const std::string& originalStr, int value1, uint64_t value2) {
+    std::vector<std::string> elements;
+    std::string temp;
+    
+    // Split the original string by '-'
+    for(char c : originalStr) {
+        if(c == '-') {
+            elements.push_back(temp);
+            temp.clear();
+        } else {
+            temp += c;
+        }
+    }
+    // Don't forget to add the last element
+    elements.push_back(temp);
+    
+    // Modify elements at index 2 and 4
+    if(elements.size() >= 5) {  // Changed from 8 to 5 since we now need at least 5 elements
+        elements[2] = std::to_string(value1);
+        std::stringstream ss;
+        ss << std::hex << value2;
+        elements[4] = ss.str();
+    }
+    
+    // Reconstruct the string
+    std::string result = elements[0];
+    for(size_t i = 1; i < elements.size(); i++) {
+        result += "-" + elements[i];
+    }
+    return result;
+}
+
+std::string modifyCallsiteSource(const std::string& originalStr, int value1, uint64_t value2) {
+    std::vector<std::string> elements;
+    std::string temp;
+    
+    // Split the original string by '-'
+    for(char c : originalStr) {
+        if(c == '-') {
+            elements.push_back(temp);
+            temp.clear();
+        } else {
+            temp += c;
+        }
+    }
+    // Don't forget to add the last element
+    elements.push_back(temp);
+    
+    // Modify elements at index 2 and 4
+    if(elements.size() >= 5) {  // Changed from 8 to 5 since we now need at least 5 elements
+        elements[3] = std::to_string(value1);
+        // elements[4] = std::to_string(value2);
+        std::stringstream ss;
+        ss << std::hex << value2;
+        elements[4] = ss.str();
+    }
+    
+    // Reconstruct the string
+    std::string result = elements[0];
+    for(size_t i = 1; i < elements.size(); i++) {
+        result += "-" + elements[i];
+    }
+    return result;
+}
+std::string modifyReturnTarget(const std::string& originalStr, int value1, uint64_t value2, uint64_t value3) {
+    std::vector<std::string> elements;
+    std::string temp;
+    
+    for(char c : originalStr) {
+        if(c == '-') {
+            elements.push_back(temp);
+            temp.clear();
+        } else {
+            temp += c;
+        }
+    }
+    elements.push_back(temp);
+    
+    if(elements.size() >= 3) {
+        size_t lastIndex = elements.size() - 1;
+        elements[lastIndex-2] = std::to_string(value1);
+        std::stringstream ss;
+        ss << std::hex << value2;
+        elements[lastIndex-1] = ss.str();
+        std::stringstream sslast;
+        sslast << std::hex << value3;
+        elements[lastIndex] = sslast.str();
+    }
+    
+    std::string result = elements[0];
+    for(size_t i = 1; i < elements.size(); i++) {
+        result += "-" + elements[i];
+    }
     return result;
 }
 
@@ -109,7 +260,6 @@ bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF) {
     // jump table label first
       Function &F = MF.getFunction();
 
-    // LLVM_DEBUG(dbgs() << "Function address: " << FuncAddr << "\n");
     bool havejumptable = false;
     // Process jump tables
     MachineJumpTableInfo *JumpTableInfo = MF.getJumpTableInfo();
@@ -117,38 +267,51 @@ bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF) {
         havejumptable = true;
     
     }
-
-    // bool Modified = false;
-    //  LLVM_DEBUG(dbgs() << "Jump Table Size#" << JumpTableInfo->getJumpTables().size() << "\n");
     
     if(havejumptable) {
     for (unsigned JTIndex = 0; JTIndex < JumpTableInfo->getJumpTables().size(); ++JTIndex) {
     const MachineJumpTableEntry &JTEntry = JumpTableInfo->getJumpTables()[JTIndex];
-    // LLVM_DEBUG(dbgs() << "FuncAddr:" << FuncAddr << "Jump Table #" << JTIndex << " contains " 
-                    //   << JTEntry.MBBs.size() << " entries.\n");
     
     // Handle indirect jump instruction
     MachineInstr *indirectJumpInstr = traceIndirectJumps(MF, JTIndex, JumpTableInfo);
     if (indirectJumpInstr) {
+        if(indirectJumpInstr->getPreInstrSymbol()) {
+             MCSymbol *Label = indirectJumpInstr->getPreInstrSymbol();
+            std::string labelName = Label->getName().str();  // Store it somewhere permanent
+            const std::string& labelRef = labelName;
+            std::string modifiedLabel = modifyJumptableLabel(labelRef, RunCount);
+            MCSymbol *newLabel = MF.getContext().getOrCreateSymbol(modifiedLabel);
+            indirectJumpInstr->setPreInstrSymbol(MF, newLabel);
+        } else {
+            const std::string& labelName = initializeLabel();
+            std::string modifiedLabel = modifyJumptableLabel(labelName, RunCount);
+            errs()<< "modifiedLabel:" << modifiedLabel <<"\n";
+            MCSymbol *Label = MF.getContext().getOrCreateSymbol(modifiedLabel);
+            indirectJumpInstr->setPreInstrSymbol(MF, Label);
+        }
         // Create label for indirect jump
-        std::string LabelName =  std::to_string(RunCount) + "_IJUMP_" + std::to_string(JTIndex);
-        MCSymbol *Label = MF.getContext().getOrCreateSymbol(LabelName);
-        indirectJumpInstr->setPreInstrSymbol(MF, Label);
         if (MaxEntrySize < JTEntry.MBBs.size()) {
             MaxEntrySize = JTEntry.MBBs.size();
         }
         for (unsigned EntryIndex = 0; EntryIndex < JTEntry.MBBs.size(); ++EntryIndex) {
             MachineBasicBlock *TargetMBB = JTEntry.MBBs[EntryIndex];
             if (!TargetMBB->empty()) {
-            std::string EntryLabelName = std::to_string(RunCount) + "_JTENTRY_" + std::to_string(JTIndex) + "_" + std::to_string(EntryIndex);
-            MCSymbol *EntryLabel = MF.getContext().getOrCreateSymbol(EntryLabelName);
-            
-            // Set label only on first instruction
             MachineInstr &FirstInstr = TargetMBB->front();
-            FirstInstr.setPreInstrSymbol(MF, EntryLabel);
-            
-            // LLVM_DEBUG(dbgs() << "Created label for jump table entry: " << EntryLabelName << "\n");
-        }
+            if(FirstInstr.getPreInstrSymbol()) {
+            MCSymbol *Label = FirstInstr.getPreInstrSymbol();
+            std::string labelName = Label->getName().str();  // Store it somewhere permanent
+            const std::string& labelRef = labelName;
+            std::string modifiedLabel = modifyJumpEntry(labelRef, RunCount, EntryIndex + 1);
+            MCSymbol *newLabel = MF.getContext().getOrCreateSymbol(modifiedLabel);
+            FirstInstr.setPreInstrSymbol(MF, newLabel);
+            } else {
+                const std::string& labelName = initializeLabel();
+                std::string modifiedLabel = modifyJumpEntry(labelName, RunCount, EntryIndex + 1);
+                errs()<< "modifiedLabel:" << modifiedLabel <<"\n";
+                MCSymbol *Label = MF.getContext().getOrCreateSymbol(modifiedLabel);
+                FirstInstr.setPreInstrSymbol(MF, Label);
+                 }
+            }
         }
         RunCount ++;
     }
@@ -163,42 +326,63 @@ bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF) {
     for (auto &MBB : MF) {
         for (auto &MI : MBB) {
             if(recordnext) {
-                std::string nextLabel = "callsite_" + std::to_string(callsiteID - 1) + "_next";
-                typeIdtocallsitenext[lastTypeId].insert(nextLabel);
-                MCSymbol *Label = MF.getContext().getOrCreateSymbol(nextLabel);
-                llvm::MachineInstr* MIptr = &MI;
-                MIptr->setPreInstrSymbol(MF, Label);
-                errs() << "CallsiteID:" << callsiteID  -1<< "_next"<<"\n";
-                recordnext = false;
+                // std::string nextLabel = "callsite_" + std::to_string(callsiteID - 1) + "_next";
+                // typeIdtocallsitenext[lastTypeId].insert(nextLabel);
+                // MCSymbol *Label = MF.getContext().getOrCreateSymbol(nextLabel);
+                // llvm::MachineInstr* MIptr = &MI;
+                // MIptr->setPreInstrSymbol(MF, Label);
+                // errs() << "CallsiteID:" << callsiteID  -1<< "_next"<<"\n";
+                // recordnext = false;
             }
             if (TM.Options.MatchIndirectCall && MI.isCall()) {
-                LLVM_DEBUG(MI.print(dbgs()));
-                LLVM_DEBUG(dbgs() << "MI opcode:" << MI.getOpcode() << "\n");
-                
                 const auto &CallSiteInfo = CallSitesInfoMap.find(&MI);
                 if (CallSiteInfo != CallSitesInfoMap.end()) {
                     // Generate labelName based on callsiteID
                     if (auto *TypeId = CallSiteInfo->second.TypeId) {
                         uint64_t TypeIdVal = TypeId->getZExtValue();  // Can be used later if needed
-                        LLVM_DEBUG(dbgs() << "  TypeId value: 0x" << Twine::utohexstr(TypeIdVal) << "\n");
                         lastTypeId = TypeIdVal;
                         if (X86LabelIndirectCallTarget::TailJumps.count(MI.getOpcode())) {
                             std::string labelName = "tailcallsite_" + std::to_string(tailcallID);
                             callsitetoTypeID[labelName].insert(TypeIdVal);
-                            MCSymbol *Label = MF.getContext().getOrCreateSymbol(labelName);
+
+                            // MCSymbol *Label = MF.getContext().getOrCreateSymbol(labelName);
                             llvm::MachineInstr* MIptr = &MI;
-                            MIptr->setPreInstrSymbol(MF, Label);
-                            errs() << "tailcallID:" << tailcallID << "\n";
+                             if(MIptr->getPreInstrSymbol()) {
+                                MCSymbol *Label = MIptr->getPreInstrSymbol();
+                                std::string labelName = Label->getName().str();  // Store it somewhere permanent
+                                const std::string& labelRef = labelName;
+                                std::string modifiedLabel = modifyTailcallSource(labelRef, tailcallID, TypeIdVal);
+                                MCSymbol *newLabel = MF.getContext().getOrCreateSymbol(modifiedLabel);
+                                MIptr->setPreInstrSymbol(MF, newLabel);
+                            // MIptr->setPreInstrSymbol(MF, Label);
+                            // errs() << "tailcallID:" << tailcallID << "\n";
+                             } else {
+                                const std::string& labelName = initializeLabel();
+                                std::string modifiedLabel = modifyTailcallSource(labelName, tailcallID, TypeIdVal);
+                                errs()<< "modifiedLabel:" << modifiedLabel <<"\n";
+                                MCSymbol *Label = MF.getContext().getOrCreateSymbol(modifiedLabel);
+                                MIptr->setPreInstrSymbol(MF, Label);
+                             }
                             tailcallID++;
                         } else {
                             std::string labelName = "callsite_" + std::to_string(callsiteID);
                             callsitetoTypeID[labelName].insert(TypeIdVal);
-                            MCSymbol *Label = MF.getContext().getOrCreateSymbol(labelName);
-                            llvm::MachineInstr* MIptr = &MI;
-                            MIptr->setPreInstrSymbol(MF, Label);
-                            errs() << "CallsiteID:" << callsiteID << "\n";
-                            callsiteID++;
-                            recordnext = true;
+                             llvm::MachineInstr* MIptr = &MI;
+                             if(MIptr->getPreInstrSymbol()) {
+                                MCSymbol *Label = MIptr->getPreInstrSymbol();
+                                std::string labelName = Label->getName().str();  // Store it somewhere permanent
+                                const std::string& labelRef = labelName;
+                                std::string modifiedLabel = modifyCallsiteSource(labelRef, callsiteID, TypeIdVal);
+                                MCSymbol *newLabel = MF.getContext().getOrCreateSymbol(modifiedLabel);
+                                MIptr->setPreInstrSymbol(MF, newLabel);
+                             } else {
+                                const std::string& labelName = initializeLabel();
+                                std::string modifiedLabel = modifyCallsiteSource(labelName, callsiteID, TypeIdVal);
+                                errs()<< "modifiedLabel:" << modifiedLabel <<"\n";
+                                MCSymbol *Label = MF.getContext().getOrCreateSymbol(modifiedLabel);
+                                MIptr->setPreInstrSymbol(MF, Label);
+                             }
+                             callsiteID++;
                         }
                     }
                 }
@@ -223,29 +407,46 @@ bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF) {
     if (TypeIdVal != 0) {
         bool Inserted = TypeIdSet.insert(TypeIdVal).second;
         if (Inserted) {
-            LLVM_DEBUG(dbgs() << "inserted" << "\n");
+            // LLVM_DEBUG(dbgs() << "inserted" << "\n");
         }
     } else {
-        LLVM_DEBUG(dbgs() << "func name: " << F.getName() << ": TypeIdVal == 0" << "\n");
+        // LLVM_DEBUG(dbgs() << "func name: " << F.getName() << ": TypeIdVal == 0" << "\n");
     }
 
-    unsigned ReturnCounter = 0;  // Counter for this function only
+    unsigned ReturnCounter = 1;  // Counter for this function only
     for (auto &MBB : MF) {
         if (!MBB.empty() && TypeIdVal != 0) {
             MachineBasicBlock::iterator Terminator = MBB.terminators().begin();
             if (Terminator != MBB.end() && Terminator->isReturn()) {
-                SmallString<64> RetLabel;
-                raw_svector_ostream(RetLabel) << "func_" << FHash << "_"
-                                            << Twine::utohexstr(TypeIdVal) 
-                                            << "_ret_" << ReturnCounter;
-                
-                MCSymbol *Label = MF.getContext().getOrCreateSymbol(RetLabel);
-                // if (&MBB == &MF.front()) {
-                   MBB.begin()->setPreInstrSymbol(MF, Label);
-              //  } else {
-               //     MBB.begin()->setPreInstrSymbol(MF, Label);
-                //}
+                auto MI = MBB.begin();
+                llvm::MachineInstr* MIptr = &*MI;
+                 if(MIptr->getPreInstrSymbol()) {
+                        MCSymbol *Label = MIptr->getPreInstrSymbol();
+                        std::string labelName = Label->getName().str();  // Store it somewhere permanent
+                        const std::string& labelRef = labelName;
+                        std::string modifiedLabel = modifyReturnTarget(labelRef, ReturnCounter, FHash, TypeIdVal);
+                        MCSymbol *newLabel = MF.getContext().getOrCreateSymbol(modifiedLabel);
+                        MIptr->setPreInstrSymbol(MF, newLabel);
+                        } else {
+                        const std::string& labelName = initializeLabel();
+                        std::string modifiedLabel = modifyReturnTarget(labelName, ReturnCounter, FHash, TypeIdVal);
+                        errs()<< "modifiedLabel:" << modifiedLabel <<"\n";
+                        MCSymbol *Label = MF.getContext().getOrCreateSymbol(modifiedLabel);
+                        MIptr->setPreInstrSymbol(MF, Label);
+                    }
                 ReturnCounter++;
+            //     SmallString<64> RetLabel;
+            //     raw_svector_ostream(RetLabel) << "func_" << FHash << "_"
+            //                                 << Twine::utohexstr(TypeIdVal) 
+            //                                 << "_ret_" << ReturnCounter;
+                
+            //     MCSymbol *Label = MF.getContext().getOrCreateSymbol(RetLabel);
+            //     // if (&MBB == &MF.front()) {
+            //        MBB.begin()->setPreInstrSymbol(MF, Label);
+            //   //  } else {
+            //    //     MBB.begin()->setPreInstrSymbol(MF, Label);
+            //     //}
+
             }
         }
     }
