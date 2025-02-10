@@ -435,18 +435,6 @@ bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF) {
                         MIptr->setPreInstrSymbol(MF, Label);
                     }
                 ReturnCounter++;
-            //     SmallString<64> RetLabel;
-            //     raw_svector_ostream(RetLabel) << "func_" << FHash << "_"
-            //                                 << Twine::utohexstr(TypeIdVal) 
-            //                                 << "_ret_" << ReturnCounter;
-                
-            //     MCSymbol *Label = MF.getContext().getOrCreateSymbol(RetLabel);
-            //     // if (&MBB == &MF.front()) {
-            //        MBB.begin()->setPreInstrSymbol(MF, Label);
-            //   //  } else {
-            //    //     MBB.begin()->setPreInstrSymbol(MF, Label);
-            //     //}
-
             }
         }
     }
