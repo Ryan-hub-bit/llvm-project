@@ -811,6 +811,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     std::unique_ptr<llvm::ToolOutputFile> &ThinLinkOS, BackendConsumer *BC) {
   std::optional<PGOOptions> PGOOpt;
 
+
   if (CodeGenOpts.hasProfileIRInstr())
     // -fprofile-generate.
     PGOOpt = PGOOptions(
@@ -934,6 +935,12 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     break;
   }
 
+    // Add InterproceduralGraph pass registration here
+  PB.registerOptimizerLastEPCallback(
+      [](ModulePassManager &MPM, OptimizationLevel Level) {
+          MPM.addPass(InterproceduralGraphPass());
+      });
+
   // Enable verify-debuginfo-preserve-each for new PM.
   DebugifyEachInstrumentation Debugify;
   DebugInfoPerPass DebugInfoBeforePass;
@@ -977,8 +984,12 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
 
   ModulePassManager MPM;
   // Add a verifier pass, before any other passes, to catch CodeGen issues.
+
   if (CodeGenOpts.VerifyModule)
     MPM.addPass(VerifierPass());
+  
+
+  // MPM.addPass(InterproceduralGraphPass());
 
   if (!CodeGenOpts.DisableLLVMPasses) {
     // Map our optimization levels into one of the distinct levels used to
