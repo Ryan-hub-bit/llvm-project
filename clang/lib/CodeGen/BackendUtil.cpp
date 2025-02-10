@@ -935,11 +935,11 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     break;
   }
 
-    // Add InterproceduralGraph pass registration here
-  PB.registerOptimizerLastEPCallback(
-      [](ModulePassManager &MPM, OptimizationLevel Level) {
-          MPM.addPass(InterproceduralGraphPass());
-      });
+      // Register with correct lambda signature
+    PB.registerOptimizerLastEPCallback(
+        [](ModulePassManager &MPM, OptimizationLevel Level, ThinOrFullLTOPhase Phase) {
+            MPM.addPass(InterproceduralGraphPass());
+        });
 
   // Enable verify-debuginfo-preserve-each for new PM.
   DebugifyEachInstrumentation Debugify;
