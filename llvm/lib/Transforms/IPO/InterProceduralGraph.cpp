@@ -79,56 +79,71 @@ struct InterproceduralGraph {
             edges.push_back(edge);
         }
     }
-
+    
     void findReturnEdges(CallGraph& CG) {
-        for (auto& nodePair : CG) {
-            const Function* caller = nodePair.first;
-            CallGraphNode* cgn = nodePair.second.get();
-            if (!caller) continue;
+    for (auto& nodePair : CG) {
+        const Function* caller = nodePair.first;
+        CallGraphNode* cgn = nodePair.second.get();
+        if (!caller) continue;
 
-            for (auto it = cgn->begin(); it != cgn->end(); ++it) {
-                bool foundCall = false;
-                CallGraphNode::CallRecord callRecord = *it;
-                Function* callee = callRecord.second->getFunction();
-                if (!callee || callee->isDeclaration()) continue;
+        for (auto it = cgn->begin(); it != cgn->end(); ++it) {
+            bool foundCall = false;
+            CallGraphNode::CallRecord callRecord = *it;
+            Function* callee = callRecord.second->getFunction();
+            if (!callee || callee->isDeclaration()) continue;
 
-                for (const BasicBlock& CBB : *caller) {
+            for (const BasicBlock& CBB : *caller) {
+                if (foundCall) break;
+                for (const Instruction& I : CBB) {
                     if (foundCall) break;
-                    for (const Instruction& I : CBB) {
-                        if (foundCall) break;
-                        if (const CallBase* CB = dyn_cast<CallBase>(&I)) {
-                            if (CB->getCalledFunction() == callee) {
-                                foundCall = true;
-                                llvm::BasicBlock* CBBPtr = const_cast<llvm::BasicBlock*>(&CBB);
-                                Node callerNode = Node(CBB.getName().str(), CBBPtr, caller->getName().str());
-                                llvm::BasicBlock* callersig = getSig(callerNode);
-                                addNode(callerNode);
+                    if (const CallBase* CB = dyn_cast<CallBase>(&I)) {
+                        if (CB->getCalledFunction() == callee) {
+                            foundCall = true;
+                            llvm::BasicBlock* CBBPtr = const_cast<llvm::BasicBlock*>(&CBB);
+                            Node callerNode = Node(CBB.getName().str(), CBBPtr, caller->getName().str());
+                            llvm::BasicBlock* callersig = getSig(callerNode);
 
-                                if (const InvokeInst* invoke = dyn_cast<InvokeInst>(CB)) {
-                                    BasicBlock* unwindDest = invoke->getUnwindDest();
-                                    if (unwindDest) {
-                                        Node exceptionNode = Node(unwindDest->getName().str(), unwindDest, caller->getName().str());
+                            // Check for explicit try-catch blocks
+                            if (const InvokeInst* invoke = dyn_cast<InvokeInst>(CB)) {
+                                BasicBlock* unwindDest = invoke->getUnwindDest();
+                                if (unwindDest) {
+                                    // Check if this is from an explicit try-catch
+                                    bool isExplicitTryCatch = false;
+                                    
+                                    // Look for landingpad instruction in unwind destination
+                                    for (const Instruction& UnwindInst : *unwindDest) {
+                                        if (isa<LandingPadInst>(&UnwindInst)) {
+                                            const LandingPadInst* LP = cast<LandingPadInst>(&UnwindInst);
+                                            // Check if the landingpad has catch clauses
+                                            if (LP->getNumClauses() > 0) {
+                                                isExplicitTryCatch = true;
+                                                break;
+                                            }
+                                        }
+                                    }
+
+                                    // Only add to returnBlockMap if it's an explicit try-catch
+                                    if (isExplicitTryCatch) {
+                                        Node exceptionNode = Node(unwindDest->getName().str(), 
+                                                               unwindDest, 
+                                                               caller->getName().str());
                                         BasicBlock* exceptionsig = getSig(exceptionNode);
-                                        addNode(exceptionNode);
-
-                                        outs() << "get exception case:" << "\n";
+                                        
+                                        outs() << "Found explicit try-catch exception case\n";
                                         returnBlockMap[callersig].insert(exceptionsig);
-                                        Edge exceptionEdge = Edge(exceptionsig, callersig, "Exception");
-                                        addEdge(exceptionEdge);
                                     }
                                 }
+                            }
 
-                                for (BasicBlock& calleeBB : *callee) {
-                                    for (Instruction& I : calleeBB) {
-                                        if (isa<llvm::ReturnInst>(&I)) {
-                                            Node calleeNode = Node(calleeBB.getName().str(), &calleeBB, callee->getName().str());
-                                            BasicBlock* calleesig = getSig(calleeNode);
-                                            addNode(calleeNode);
-
-                                            returnBlockMap[callersig].insert(calleesig);
-                                            Edge returnEdge = Edge(calleesig, callersig, "return");
-                                            addEdge(returnEdge);
-                                        }
+                            // Handle normal returns as before
+                            for (BasicBlock& calleeBB : *callee) {
+                                for (Instruction& I : calleeBB) {
+                                    if (isa<llvm::ReturnInst>(&I)) {
+                                        Node calleeNode = Node(calleeBB.getName().str(), 
+                                                            &calleeBB, 
+                                                            callee->getName().str());
+                                        BasicBlock* calleesig = getSig(calleeNode);
+                                        returnBlockMap[callersig].insert(calleesig);
                                     }
                                 }
                             }
@@ -138,6 +153,7 @@ struct InterproceduralGraph {
             }
         }
     }
+}
 };
 
 void insertAddrListtoSection(Module& M,
@@ -147,72 +163,230 @@ void insertAddrListtoSection(Module& M,
     LLVMContext& Context = M.getContext();
     Type* Int64Ty = Type::getInt64Ty(Context);
     
-    int counter = 0;  // Counter for unique global variable names
-    for (BasicBlock* addr : keyList) {
-        outs() << "Processing keyList basic block at address " << addr << "\n";
-
-        BlockAddress* blockAddr = BlockAddress::get(addr->getParent(), addr);
-        BasicBlock* block = blockAddr->getBasicBlock();
-        Value* addrValue = nullptr;
-        Function* parentFunction = block->getParent();
-
-        if (block == &parentFunction->getEntryBlock()) {
-            addrValue = ConstantExpr::getPtrToInt(parentFunction, Int64Ty);
-        } else {
-            addrValue = ConstantExpr::getPtrToInt(blockAddr, Int64Ty);
-        }
-
+    int counter = 0;
+    for (BasicBlock* BB : keyList) {
+        if (!BB || !BB->getParent()) continue;
+        
+        Function* parentFunc = BB->getParent();
         std::string varName = "caller" + std::to_string(counter) + "_" + std::to_string(countList[counter]);
+        
+        // Create a more stable reference using function pointer for entry blocks
+        Constant* addrValue = nullptr;
+        if (BB == &parentFunc->getEntryBlock()) {
+            addrValue = parentFunc;
+        } else {
+            // For non-entry blocks, use a more stable indirect reference
+            addrValue = BlockAddress::get(parentFunc, BB);
+        }
+        
+        // Convert to integer using a stable bit pattern
+        Constant* intValue = ConstantExpr::getPtrToInt(addrValue, Int64Ty);
 
-        GlobalVariable* MyVariable = new GlobalVariable(
-            M,                              // Module
-            Int64Ty,                        // Type
-            true,                           // IsConstant
-            GlobalValue::ExternalLinkage,   // Linkage
-            cast<Constant>(addrValue),      // Initializer
-            varName,                        // Name
-            nullptr,                        // InsertBefore
-            GlobalValue::NotThreadLocal,    // Thread Local
-            0,                             // AddressSpace
-            true                           // Constant
+        // Create global variable with proper alignment and linkage
+        auto* GV = new GlobalVariable(
+            M,
+            Int64Ty,
+            true,                           // isConstant
+            GlobalValue::InternalLinkage,   // linkage
+            intValue,                       // initializer
+            varName                         // name
         );
+        GV->setSection(".section_for_caller");
+        GV->setAlignment(Align(8));
         counter++;
-        MyVariable->setSection(".section_for_caller");
     }
 
-    int newCounter = 0;
-    for (BasicBlock* addr : valueList) {
-        outs() << "Processing valuelist basic block at address " << addr << "\n";
+    counter = 0;
+    for (BasicBlock* BB : valueList) {
+        if (!BB || !BB->getParent()) continue;
+            // Debug output to verify basic block validity
+        // outs() << "Processing basic block: " << BB->getName() << "\n";
+        // outs() << "Parent function: " << BB->getParent()->getName() << "\n";
+        // // outs() << "Number of uses: " << BB->use_size() << "\n";
 
-        BlockAddress* blockAddr = BlockAddress::get(addr->getParent(), addr);
-        BasicBlock* block = blockAddr->getBasicBlock();
-        Value* addrValue = nullptr;
-        Function* parentFunction = block->getParent();
-
-        if (block == &parentFunction->getEntryBlock()) {
-            addrValue = ConstantExpr::getPtrToInt(parentFunction, Int64Ty);
+        // if (BB->use_empty()) {
+        //     outs() << "Skipping unreachable basic block: " << BB->getName() << "\n";
+        //     continue;
+        // }
+            
+        Function* parentFunc = BB->getParent();
+        std::string varName = "return_" + std::to_string(counter);
+        
+        Constant* addrValue = nullptr;
+        if (BB == &parentFunc->getEntryBlock()) {
+            addrValue = parentFunc;
         } else {
-            addrValue = ConstantExpr::getPtrToInt(blockAddr, Int64Ty);
+            addrValue = BlockAddress::get(parentFunc, BB);
         }
+        
+        Constant* intValue = ConstantExpr::getPtrToInt(addrValue, Int64Ty);
 
-        std::string varName = "return_" + std::to_string(newCounter);
-
-        GlobalVariable* MyVariable = new GlobalVariable(
-            M,                              // Module
-            Int64Ty,                        // Type
-            true,                           // IsConstant
-            GlobalValue::ExternalLinkage,   // Linkage
-            cast<Constant>(addrValue),      // Initializer
-            varName,                        // Name
-            nullptr,                        // InsertBefore
-            GlobalValue::NotThreadLocal,    // Thread Local
-            0,                             // AddressSpace
-            true                           // Constant
+        auto* GV = new GlobalVariable(
+            M,
+            Int64Ty,
+            true,
+            GlobalValue::InternalLinkage,
+            intValue,
+            varName
         );
-        newCounter++;
-        MyVariable->setSection(".section_for_return_and_exception");
+        GV->setSection(".section_for_return_and_exception");
+        GV->setAlignment(Align(8));
+        counter++;
     }
 }
+
+// void insertAddrListtoSection(Module& M,
+//                            std::vector<llvm::BasicBlock*>& keyList,
+//                            std::vector<llvm::BasicBlock*>& valueList,
+//                            std::vector<int>& countList) {
+//     LLVMContext& Context = M.getContext();
+//     Type* Int64Ty = Type::getInt64Ty(Context);
+    
+//     int counter = 0;  // Counter for unique global variable names
+//     for (BasicBlock* addr : keyList) {
+//         outs() << "Processing keyList basic block at address " << addr << "\n";
+
+//         BlockAddress* blockAddr = BlockAddress::get(addr->getParent(), addr);
+//         BasicBlock* block = blockAddr->getBasicBlock();
+//         Value* addrValue = nullptr;
+//         Function* parentFunction = block->getParent();
+
+//         if (block == &parentFunction->getEntryBlock()) {
+//             addrValue = ConstantExpr::getPtrToInt(parentFunction, Int64Ty);
+//         } else {
+//             addrValue = ConstantExpr::getPtrToInt(blockAddr, Int64Ty);
+//         }
+
+//         std::string varName = "caller" + std::to_string(counter) + "_" + std::to_string(countList[counter]);
+
+//         GlobalVariable* MyVariable = new GlobalVariable(
+//             M,                              // Module
+//             Int64Ty,                        // Type
+//             true,                           // IsConstant
+//             GlobalValue::ExternalLinkage,   // Linkage
+//             cast<Constant>(addrValue),      // Initializer
+//             varName,                        // Name
+//             nullptr,                        // InsertBefore
+//             GlobalValue::NotThreadLocal,    // Thread Local
+//             0,                             // AddressSpace
+//             true                           // Constant
+//         );
+//         counter++;
+//         MyVariable->setSection(".section_for_caller");
+//     }
+
+//     int newCounter = 0;
+//     for (BasicBlock* addr : valueList) {
+//         outs() << "Processing valuelist basic block at address " << addr << "\n";
+
+//         BlockAddress* blockAddr = BlockAddress::get(addr->getParent(), addr);
+//         BasicBlock* block = blockAddr->getBasicBlock();
+//         Value* addrValue = nullptr;
+//         Function* parentFunction = block->getParent();
+
+//         if (block == &parentFunction->getEntryBlock()) {
+//             addrValue = ConstantExpr::getPtrToInt(parentFunction, Int64Ty);
+//         } else {
+//             addrValue = ConstantExpr::getPtrToInt(blockAddr, Int64Ty);
+//         }
+
+//         std::string varName = "return_" + std::to_string(newCounter);
+
+//         GlobalVariable* MyVariable = new GlobalVariable(
+//             M,                              // Module
+//             Int64Ty,                        // Type
+//             true,                           // IsConstant
+//             GlobalValue::ExternalLinkage,   // Linkage
+//             cast<Constant>(addrValue),      // Initializer
+//             varName,                        // Name
+//             nullptr,                        // InsertBefore
+//             GlobalValue::NotThreadLocal,    // Thread Local
+//             0,                             // AddressSpace
+//             true                           // Constant
+//         );
+//         newCounter++;
+//         MyVariable->setSection(".section_for_return_and_exception");
+//     }
+// }
+
+// void insertAddrListtoSection(Module& M,
+//                            std::vector<llvm::BasicBlock*>& keyList,
+//                            std::vector<llvm::BasicBlock*>& valueList,
+//                            std::vector<int>& countList) {
+//     LLVMContext& Context = M.getContext();
+//     Type* Int64Ty = Type::getInt64Ty(Context);
+    
+//     int counter = 0;
+//     for (BasicBlock* BB : keyList) {
+//         if (!BB || !BB->getParent()) continue;
+        
+//         // Create a more stable reference to the block
+//         Function* parentFunc = BB->getParent();
+//         std::string varName = "caller" + std::to_string(counter) + "_" + std::to_string(countList[counter]);
+        
+//         // Use indirect addressing instead of direct block addresses
+//         Constant* addrValue = nullptr;
+//         if (BB == &parentFunc->getEntryBlock()) {
+//             // For entry blocks, use the function address
+//             addrValue = ConstantExpr::getBitCast(parentFunc, Type::getInt8PtrTy(Context));
+//         } else {
+//             // For other blocks, use a stable identifier
+//             addrValue = ConstantExpr::getIntToPtr(
+//                 ConstantInt::get(Int64Ty, reinterpret_cast<uintptr_t>(BB)),
+//                 Type::getInt8PtrTy(Context)
+//             );
+//         }
+        
+//         // Convert to integer
+//         addrValue = ConstantExpr::getPtrToInt(addrValue, Int64Ty);
+
+//         auto* GV = new GlobalVariable(
+//             M,
+//             Int64Ty,
+//             true,
+//             GlobalValue::InternalLinkage, // Changed to internal linkage
+//             addrValue,
+//             varName
+//         );
+//         GV->setSection(".section_for_caller");
+//         GV->setAlignment(Align(8));
+        
+//         counter++;
+//     }
+
+//     counter = 0;
+//     for (BasicBlock* BB : valueList) {
+//         if (!BB || !BB->getParent()) continue;
+        
+//         Function* parentFunc = BB->getParent();
+//         std::string varName = "return_" + std::to_string(counter);
+        
+//         Constant* addrValue = nullptr;
+//         if (BB == &parentFunc->getEntryBlock()) {
+//             addrValue = ConstantExpr::getBitCast(parentFunc, Type::getInt8PtrTy(Context));
+//         } else {
+//             addrValue = ConstantExpr::getIntToPtr(
+//                 ConstantInt::get(Int64Ty, reinterpret_cast<uintptr_t>(BB)),
+//                 Type::getInt8PtrTy(Context)
+//             );
+//         }
+        
+//         addrValue = ConstantExpr::getPtrToInt(addrValue, Int64Ty);
+
+//         auto* GV = new GlobalVariable(
+//             M,
+//             Int64Ty,
+//             true,
+//             GlobalValue::InternalLinkage,
+//             addrValue,
+//             varName
+//         );
+//         GV->setSection(".section_for_return_and_exception");
+//         GV->setAlignment(Align(8));
+        
+//         counter++;
+//     }
+// }
 
 // Helper function that does the actual graph construction and output
 void interproceduralGraphImpl(Module& M, CallGraph& CG) {
