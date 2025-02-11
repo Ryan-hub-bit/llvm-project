@@ -80,67 +80,270 @@ struct InterproceduralGraph {
         }
     }
     
-    void findReturnEdges(CallGraph& CG) {
+//     void findReturnEdges(CallGraph& CG) {
+//     for (auto& nodePair : CG) {
+//         const Function* caller = nodePair.first;
+//         CallGraphNode* cgn = nodePair.second.get();
+//         if (!caller) continue;
+
+//         for (auto it = cgn->begin(); it != cgn->end(); ++it) {
+//             bool foundCall = false;
+//             CallGraphNode::CallRecord callRecord = *it;
+//             Function* callee = callRecord.second->getFunction();
+//             if (!callee || callee->isDeclaration()) continue;
+
+//             for (const BasicBlock& CBB : *caller) {
+//                 if (foundCall) break;
+//                 for (const Instruction& I : CBB) {
+//                     if (foundCall) break;
+//                     if (const CallBase* CB = dyn_cast<CallBase>(&I)) {
+//                         if (CB->getCalledFunction() == callee) {
+//                             foundCall = true;
+//                             llvm::BasicBlock* CBBPtr = const_cast<llvm::BasicBlock*>(&CBB);
+//                             Node callerNode = Node(CBB.getName().str(), CBBPtr, caller->getName().str());
+//                             llvm::BasicBlock* callersig = getSig(callerNode);
+
+
+// if (const InvokeInst* invoke = dyn_cast<InvokeInst>(CB)) {
+//     BasicBlock* unwindDest = invoke->getUnwindDest();
+//     if (unwindDest) {
+//         // Get the source location of the invoke instruction
+//         const DebugLoc &DL = invoke->getDebugLoc();
+//         bool hasTryCatch = false;
+//         // Skip if the source location is in a library directory
+//         if (DL) {
+//             StringRef filename = DL->getFilename();
+//             // Check if the file path contains library directories
+//             if (filename.contains("/usr/include") || filename.contains("/usr/local/include")) {
+//                 // Skip exceptions from library code
+//                 hasTryCatch = false;
+//             }
+//         } else {
+//             // Skip if there's no debug location information
+//            hasTryCatch = false;
+//         }
+
+//         // Look for landingpad instruction in unwind destination
+        
+//         for (const Instruction& UnwindInst : *unwindDest) {
+//             if (const LandingPadInst* LP = dyn_cast<LandingPadInst>(&UnwindInst)) {
+//                 // Check if this landingpad is used in a catch handler
+//                 for (const User* U : LP->users()) {
+//                     if (const auto* Resume = dyn_cast<ResumeInst>(U)) {
+//                         // If there's a resume instruction, this is likely from implicit exception
+//                         continue;
+//                     }
+//                     // If there are other users besides resume, this is likely an explicit catch
+//                     hasTryCatch = true;
+//                 }
+//                 break;
+//             }
+//         }
+
+//         if (hasTryCatch) {
+//             Node exceptionNode = Node(unwindDest->getName().str(),
+//                                    unwindDest,
+//                                    caller->getName().str());
+//             BasicBlock* exceptionsig = getSig(exceptionNode);
+            
+//             if (DL) {
+//                 outs() << "Found try-catch exception case at " 
+//                        << DL->getFilename() << ":" << DL.getLine() << "\n";
+//             } else {
+//                 outs() << "Found try-catch exception case\n";
+//             }
+//             returnBlockMap[callersig].insert(exceptionsig);
+//         }
+//     }
+// }
+//                             // Handle normal returns as before
+//                             for (BasicBlock& calleeBB : *callee) {
+//                                 for (Instruction& I : calleeBB) {
+//                                     if (isa<llvm::ReturnInst>(&I)) {
+//                                         Node calleeNode = Node(calleeBB.getName().str(), 
+//                                                             &calleeBB, 
+//                                                             callee->getName().str());
+//                                         BasicBlock* calleesig = getSig(calleeNode);
+//                                         returnBlockMap[callersig].insert(calleesig);
+//                                     }
+//                                 }
+//                             }
+//                         }
+//                     }
+//                 }
+//             }
+//         }
+//     }
+// }
+
+// void findReturnEdges(CallGraph& CG) {
+//     for (auto& nodePair : CG) {
+//         const Function* caller = nodePair.first;
+//         CallGraphNode* cgn = nodePair.second.get();
+//         if (!caller) continue;
+
+//         for (auto it = cgn->begin(); it != cgn->end(); ++it) {
+//             CallGraphNode::CallRecord callRecord = *it;
+//             Function* callee = callRecord.second->getFunction();
+//             if (!callee || callee->isDeclaration()) continue;
+
+//             for (const BasicBlock& CBB : *caller) {
+//                 for (const Instruction& I : CBB) {
+//                     if (const CallBase* CB = dyn_cast<CallBase>(&I)) {
+//                         if (CB->getCalledFunction() == callee) {
+//                             // Create caller signature
+//                             Node callerNode = Node(CBB.getName().str(), 
+//                                                 const_cast<BasicBlock*>(&CBB), 
+//                                                 caller->getName().str());
+//                             BasicBlock* callersig = getSig(callerNode);
+
+//                             // Handle invoke instructions (try-catch blocks)
+//                             if (const InvokeInst* invoke = dyn_cast<InvokeInst>(CB)) {
+//                                 BasicBlock* unwindDest = invoke->getUnwindDest();
+//                                 if (unwindDest) {
+//                                     const DebugLoc& DL = invoke->getDebugLoc();
+
+//                                     // Skip library code or code without debug location
+//                                     if (DL) {
+//                                         StringRef filename = DL->getFilename();
+//                                         if (filename.contains("/usr/include") || filename.contains("/usr/local/include")) {
+//                                             continue; // Skip library code
+//                                         }
+//                                     } else {
+//                                         continue; // Skip code without debug location
+//                                     }
+
+//                                     // Check for explicit try-catch blocks
+//                                     bool hasTryCatch = false;
+//                                     for (const Instruction& UnwindInst : *unwindDest) {
+//                                         if (const LandingPadInst* LP = dyn_cast<LandingPadInst>(&UnwindInst)) {
+//                                             for (const User* U : LP->users()) {
+//                                                 if (!isa<ResumeInst>(U)) {
+//                                                     hasTryCatch = true;
+//                                                     break;
+//                                                 }
+//                                             }
+//                                             if (hasTryCatch) break;
+//                                         }
+//                                     }
+
+//                                     // If explicit try-catch block found, add to returnBlockMap
+//                                     if (hasTryCatch) {
+//                                         Node exceptionNode = Node(unwindDest->getName().str(),
+//                                                                 unwindDest,
+//                                                                 caller->getName().str());
+//                                         BasicBlock* exceptionsig = getSig(exceptionNode);
+//                                         returnBlockMap[callersig].insert(exceptionsig);
+
+//                                         if (DL) {
+//                                             outs() << "Found try-catch exception case at "
+//                                                    << DL->getFilename() << ":" << DL.getLine() << "\n";
+//                                         } else {
+//                                             outs() << "Found try-catch exception case\n";
+//                                         }
+//                                     }
+//                                 }
+//                             }
+
+//                             // Handle normal returns
+//                             for (BasicBlock& calleeBB : *callee) {
+//                                 for (Instruction& I : calleeBB) {
+//                                     if (isa<ReturnInst>(&I)) {
+//                                         Node calleeNode = Node(calleeBB.getName().str(),
+//                                                             &calleeBB,
+//                                                             callee->getName().str());
+//                                         BasicBlock* calleesig = getSig(calleeNode);
+//                                         returnBlockMap[callersig].insert(calleesig);
+//                                     }
+//                                 }
+//                             }
+//                         }
+//                     }
+//                 }
+//             }
+//         }
+//     }
+// }
+void findReturnEdges(CallGraph& CG) {
     for (auto& nodePair : CG) {
         const Function* caller = nodePair.first;
         CallGraphNode* cgn = nodePair.second.get();
         if (!caller) continue;
 
         for (auto it = cgn->begin(); it != cgn->end(); ++it) {
-            bool foundCall = false;
             CallGraphNode::CallRecord callRecord = *it;
             Function* callee = callRecord.second->getFunction();
             if (!callee || callee->isDeclaration()) continue;
 
             for (const BasicBlock& CBB : *caller) {
-                if (foundCall) break;
                 for (const Instruction& I : CBB) {
-                    if (foundCall) break;
                     if (const CallBase* CB = dyn_cast<CallBase>(&I)) {
                         if (CB->getCalledFunction() == callee) {
-                            foundCall = true;
-                            llvm::BasicBlock* CBBPtr = const_cast<llvm::BasicBlock*>(&CBB);
-                            Node callerNode = Node(CBB.getName().str(), CBBPtr, caller->getName().str());
-                            llvm::BasicBlock* callersig = getSig(callerNode);
+                            // Create caller signature
+                            Node callerNode = Node(CBB.getName().str(), 
+                                                const_cast<BasicBlock*>(&CBB), 
+                                                caller->getName().str());
+                            BasicBlock* callersig = getSig(callerNode);
 
-                            // Check for explicit try-catch blocks
+                            // Handle invoke instructions
                             if (const InvokeInst* invoke = dyn_cast<InvokeInst>(CB)) {
                                 BasicBlock* unwindDest = invoke->getUnwindDest();
-                                if (unwindDest) {
-                                    // Check if this is from an explicit try-catch
-                                    bool isExplicitTryCatch = false;
-                                    
-                                    // Look for landingpad instruction in unwind destination
-                                    for (const Instruction& UnwindInst : *unwindDest) {
-                                        if (isa<LandingPadInst>(&UnwindInst)) {
-                                            const LandingPadInst* LP = cast<LandingPadInst>(&UnwindInst);
-                                            // Check if the landingpad has catch clauses
-                                            if (LP->getNumClauses() > 0) {
-                                                isExplicitTryCatch = true;
-                                                break;
+                                if (!unwindDest) continue;
+
+                                const DebugLoc& DL = invoke->getDebugLoc();
+                                if (!DL) continue;
+
+                                StringRef filename = DL->getFilename();
+                                // Skip system and library files
+                                if (filename.contains("/usr/") || 
+                                    filename.contains("/include/") ||
+                                    filename.contains("/lib/")) {
+                                    continue;
+                                }
+
+                                // Enhanced detection of try-catch blocks
+                                bool isExplicitTryCatch = false;
+                                const BasicBlock* catchBlock = unwindDest;
+                                
+                                // Look for landing pad instruction
+                                for (const Instruction& UnwindInst : *catchBlock) {
+                                    if (const LandingPadInst* LP = dyn_cast<LandingPadInst>(&UnwindInst)) {
+                                        // Check if this landing pad is for exception handling
+                                        if (!LP->isCleanup()) {
+                                            // Look for catch handlers
+                                            for (const User* U : LP->users()) {
+                                                // Check for catch block logic
+                                                if (!isa<ResumeInst>(U)) {
+                                                    const Instruction* I = dyn_cast<Instruction>(U);
+                                                    if (I && I->getParent() == catchBlock) {
+                                                        isExplicitTryCatch = true;
+                                                        break;
+                                                    }
+                                                }
                                             }
                                         }
                                     }
+                                }
 
-                                    // Only add to returnBlockMap if it's an explicit try-catch
-                                    if (isExplicitTryCatch) {
-                                        Node exceptionNode = Node(unwindDest->getName().str(), 
-                                                               unwindDest, 
-                                                               caller->getName().str());
-                                        BasicBlock* exceptionsig = getSig(exceptionNode);
-                                        
-                                        outs() << "Found explicit try-catch exception case\n";
-                                        returnBlockMap[callersig].insert(exceptionsig);
-                                    }
+                                if (isExplicitTryCatch) {
+                                    Node exceptionNode = Node(unwindDest->getName().str(),
+                                                            unwindDest,
+                                                            caller->getName().str());
+                                    BasicBlock* exceptionsig = getSig(exceptionNode);
+                                    returnBlockMap[callersig].insert(exceptionsig);
+
+                                    outs() << "Found source try-catch block at "
+                                           << filename << ":" << DL.getLine() 
+                                           << " in function: " << caller->getName() << "\n";
                                 }
                             }
 
-                            // Handle normal returns as before
+                            // Handle normal returns
                             for (BasicBlock& calleeBB : *callee) {
                                 for (Instruction& I : calleeBB) {
-                                    if (isa<llvm::ReturnInst>(&I)) {
-                                        Node calleeNode = Node(calleeBB.getName().str(), 
-                                                            &calleeBB, 
+                                    if (isa<ReturnInst>(&I)) {
+                                        Node calleeNode = Node(calleeBB.getName().str(),
+                                                            &calleeBB,
                                                             callee->getName().str());
                                         BasicBlock* calleesig = getSig(calleeNode);
                                         returnBlockMap[callersig].insert(calleesig);
@@ -235,158 +438,6 @@ void insertAddrListtoSection(Module& M,
     }
 }
 
-// void insertAddrListtoSection(Module& M,
-//                            std::vector<llvm::BasicBlock*>& keyList,
-//                            std::vector<llvm::BasicBlock*>& valueList,
-//                            std::vector<int>& countList) {
-//     LLVMContext& Context = M.getContext();
-//     Type* Int64Ty = Type::getInt64Ty(Context);
-    
-//     int counter = 0;  // Counter for unique global variable names
-//     for (BasicBlock* addr : keyList) {
-//         outs() << "Processing keyList basic block at address " << addr << "\n";
-
-//         BlockAddress* blockAddr = BlockAddress::get(addr->getParent(), addr);
-//         BasicBlock* block = blockAddr->getBasicBlock();
-//         Value* addrValue = nullptr;
-//         Function* parentFunction = block->getParent();
-
-//         if (block == &parentFunction->getEntryBlock()) {
-//             addrValue = ConstantExpr::getPtrToInt(parentFunction, Int64Ty);
-//         } else {
-//             addrValue = ConstantExpr::getPtrToInt(blockAddr, Int64Ty);
-//         }
-
-//         std::string varName = "caller" + std::to_string(counter) + "_" + std::to_string(countList[counter]);
-
-//         GlobalVariable* MyVariable = new GlobalVariable(
-//             M,                              // Module
-//             Int64Ty,                        // Type
-//             true,                           // IsConstant
-//             GlobalValue::ExternalLinkage,   // Linkage
-//             cast<Constant>(addrValue),      // Initializer
-//             varName,                        // Name
-//             nullptr,                        // InsertBefore
-//             GlobalValue::NotThreadLocal,    // Thread Local
-//             0,                             // AddressSpace
-//             true                           // Constant
-//         );
-//         counter++;
-//         MyVariable->setSection(".section_for_caller");
-//     }
-
-//     int newCounter = 0;
-//     for (BasicBlock* addr : valueList) {
-//         outs() << "Processing valuelist basic block at address " << addr << "\n";
-
-//         BlockAddress* blockAddr = BlockAddress::get(addr->getParent(), addr);
-//         BasicBlock* block = blockAddr->getBasicBlock();
-//         Value* addrValue = nullptr;
-//         Function* parentFunction = block->getParent();
-
-//         if (block == &parentFunction->getEntryBlock()) {
-//             addrValue = ConstantExpr::getPtrToInt(parentFunction, Int64Ty);
-//         } else {
-//             addrValue = ConstantExpr::getPtrToInt(blockAddr, Int64Ty);
-//         }
-
-//         std::string varName = "return_" + std::to_string(newCounter);
-
-//         GlobalVariable* MyVariable = new GlobalVariable(
-//             M,                              // Module
-//             Int64Ty,                        // Type
-//             true,                           // IsConstant
-//             GlobalValue::ExternalLinkage,   // Linkage
-//             cast<Constant>(addrValue),      // Initializer
-//             varName,                        // Name
-//             nullptr,                        // InsertBefore
-//             GlobalValue::NotThreadLocal,    // Thread Local
-//             0,                             // AddressSpace
-//             true                           // Constant
-//         );
-//         newCounter++;
-//         MyVariable->setSection(".section_for_return_and_exception");
-//     }
-// }
-
-// void insertAddrListtoSection(Module& M,
-//                            std::vector<llvm::BasicBlock*>& keyList,
-//                            std::vector<llvm::BasicBlock*>& valueList,
-//                            std::vector<int>& countList) {
-//     LLVMContext& Context = M.getContext();
-//     Type* Int64Ty = Type::getInt64Ty(Context);
-    
-//     int counter = 0;
-//     for (BasicBlock* BB : keyList) {
-//         if (!BB || !BB->getParent()) continue;
-        
-//         // Create a more stable reference to the block
-//         Function* parentFunc = BB->getParent();
-//         std::string varName = "caller" + std::to_string(counter) + "_" + std::to_string(countList[counter]);
-        
-//         // Use indirect addressing instead of direct block addresses
-//         Constant* addrValue = nullptr;
-//         if (BB == &parentFunc->getEntryBlock()) {
-//             // For entry blocks, use the function address
-//             addrValue = ConstantExpr::getBitCast(parentFunc, Type::getInt8PtrTy(Context));
-//         } else {
-//             // For other blocks, use a stable identifier
-//             addrValue = ConstantExpr::getIntToPtr(
-//                 ConstantInt::get(Int64Ty, reinterpret_cast<uintptr_t>(BB)),
-//                 Type::getInt8PtrTy(Context)
-//             );
-//         }
-        
-//         // Convert to integer
-//         addrValue = ConstantExpr::getPtrToInt(addrValue, Int64Ty);
-
-//         auto* GV = new GlobalVariable(
-//             M,
-//             Int64Ty,
-//             true,
-//             GlobalValue::InternalLinkage, // Changed to internal linkage
-//             addrValue,
-//             varName
-//         );
-//         GV->setSection(".section_for_caller");
-//         GV->setAlignment(Align(8));
-        
-//         counter++;
-//     }
-
-//     counter = 0;
-//     for (BasicBlock* BB : valueList) {
-//         if (!BB || !BB->getParent()) continue;
-        
-//         Function* parentFunc = BB->getParent();
-//         std::string varName = "return_" + std::to_string(counter);
-        
-//         Constant* addrValue = nullptr;
-//         if (BB == &parentFunc->getEntryBlock()) {
-//             addrValue = ConstantExpr::getBitCast(parentFunc, Type::getInt8PtrTy(Context));
-//         } else {
-//             addrValue = ConstantExpr::getIntToPtr(
-//                 ConstantInt::get(Int64Ty, reinterpret_cast<uintptr_t>(BB)),
-//                 Type::getInt8PtrTy(Context)
-//             );
-//         }
-        
-//         addrValue = ConstantExpr::getPtrToInt(addrValue, Int64Ty);
-
-//         auto* GV = new GlobalVariable(
-//             M,
-//             Int64Ty,
-//             true,
-//             GlobalValue::InternalLinkage,
-//             addrValue,
-//             varName
-//         );
-//         GV->setSection(".section_for_return_and_exception");
-//         GV->setAlignment(Align(8));
-        
-//         counter++;
-//     }
-// }
 
 // Helper function that does the actual graph construction and output
 void interproceduralGraphImpl(Module& M, CallGraph& CG) {
