@@ -1611,6 +1611,7 @@ PassBuilder::buildPerModuleDefaultPipeline(OptimizationLevel Level,
     return buildO0DefaultPipeline(Level, Phase);
 
   ModulePassManager MPM;
+  MPM.addPass(InterproceduralGraphPass());
 
   // Convert @llvm.global.annotations to !annotation metadata.
   MPM.addPass(Annotation2MetadataPass());
@@ -1811,7 +1812,7 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
   // Create a function that performs CFI checks for cross-DSO calls with targets
   // in the current module.
   MPM.addPass(CrossDSOCFIPass());
-  // MPM.addPass(InterproceduralGraphPass());
+ 
 
   if (Level == OptimizationLevel::O0) {
     // The WPD and LowerTypeTest passes need to run at -O0 to lower type
@@ -2141,6 +2142,8 @@ PassBuilder::buildO0DefaultPipeline(OptimizationLevel Level,
          "buildO0DefaultPipeline should only be used with O0");
 
   ModulePassManager MPM;
+  MPM.addPass(InterproceduralGraphPass());
+
 
   // Perform pseudo probe instrumentation in O0 mode. This is for the
   // consistency between different build modes. For example, a LTO build can be
