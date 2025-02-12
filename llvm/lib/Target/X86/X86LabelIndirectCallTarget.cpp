@@ -78,8 +78,8 @@ static uint64_t extractNumericCGTypeId(const Function &F) {
     return llvm::MD5Hash(MDGeneralizedTypeId->getString());
 }
 
-static const std::string& initializeLabel() {
-    static std::string result = "s";
+static const std::string& initializeLabel(StringRef moIdentifier) {
+    static std::string result = moIdentifier.str();
     // Only initialize if this is the first call
     static bool initialized = false;
     if (!initialized) {
@@ -259,7 +259,7 @@ bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF) {
 
     // jump table label first
       Function &F = MF.getFunction();
-
+    StringRef moIdentifier = F.getParent()->getModuleIdentifier();
     bool havejumptable = false;
     // Process jump tables
     MachineJumpTableInfo *JumpTableInfo = MF.getJumpTableInfo();
@@ -283,7 +283,7 @@ bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF) {
             MCSymbol *newLabel = MF.getContext().getOrCreateSymbol(modifiedLabel);
             indirectJumpInstr->setPreInstrSymbol(MF, newLabel);
         } else {
-            const std::string& labelName = initializeLabel();
+            const std::string& labelName = initializeLabel(moIdentifier);
             std::string modifiedLabel = modifyJumptableLabel(labelName, RunCount);
             errs()<< "modifiedLabel:" << modifiedLabel <<"\n";
             MCSymbol *Label = MF.getContext().getOrCreateSymbol(modifiedLabel);
@@ -305,7 +305,7 @@ bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF) {
             MCSymbol *newLabel = MF.getContext().getOrCreateSymbol(modifiedLabel);
             FirstInstr.setPreInstrSymbol(MF, newLabel);
             } else {
-                const std::string& labelName = initializeLabel();
+                const std::string& labelName = initializeLabel(moIdentifier);
                 std::string modifiedLabel = modifyJumpEntry(labelName, RunCount, EntryIndex + 1);
                 errs()<< "modifiedLabel:" << modifiedLabel <<"\n";
                 MCSymbol *Label = MF.getContext().getOrCreateSymbol(modifiedLabel);
@@ -357,7 +357,7 @@ bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF) {
                             // MIptr->setPreInstrSymbol(MF, Label);
                             // errs() << "tailcallID:" << tailcallID << "\n";
                              } else {
-                                const std::string& labelName = initializeLabel();
+                                const std::string& labelName = initializeLabel(moIdentifier);
                                 std::string modifiedLabel = modifyTailcallSource(labelName, tailcallID, TypeIdVal);
                                 errs()<< "modifiedLabel:" << modifiedLabel <<"\n";
                                 MCSymbol *Label = MF.getContext().getOrCreateSymbol(modifiedLabel);
@@ -376,7 +376,7 @@ bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF) {
                                 MCSymbol *newLabel = MF.getContext().getOrCreateSymbol(modifiedLabel);
                                 MIptr->setPreInstrSymbol(MF, newLabel);
                              } else {
-                                const std::string& labelName = initializeLabel();
+                                const std::string& labelName = initializeLabel(moIdentifier);
                                 std::string modifiedLabel = modifyCallsiteSource(labelName, callsiteID, TypeIdVal);
                                 errs()<< "modifiedLabel:" << modifiedLabel <<"\n";
                                 MCSymbol *Label = MF.getContext().getOrCreateSymbol(modifiedLabel);
@@ -428,7 +428,7 @@ bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF) {
                         MCSymbol *newLabel = MF.getContext().getOrCreateSymbol(modifiedLabel);
                         MIptr->setPreInstrSymbol(MF, newLabel);
                         } else {
-                        const std::string& labelName = initializeLabel();
+                        const std::string& labelName = initializeLabel(moIdentifier);
                         std::string modifiedLabel = modifyReturnTarget(labelName, ReturnCounter, FHash, TypeIdVal);
                         errs()<< "modifiedLabel:" << modifiedLabel <<"\n";
                         MCSymbol *Label = MF.getContext().getOrCreateSymbol(modifiedLabel);

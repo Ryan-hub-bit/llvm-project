@@ -14,6 +14,9 @@
 #include <fstream>
 #include <list>
 #include <algorithm>
+#include <cstdlib>   // For rand() and srand()
+#include <ctime>     // For time()
+#include <string> 
 
 using namespace llvm;
 
@@ -190,7 +193,9 @@ void insertAddrListtoSection(Module& M,
         if (!BB || !BB->getParent()) continue;
         
         Function* parentFunc = BB->getParent();
-        std::string varName = "caller_" + std::to_string(counter) + "_" + std::to_string(countList[counter]);
+        srand(time(NULL) + counter); // Seed with time + callerNum for more variation
+        int randomNum = rand() % 100;  // Random number between 0-99
+        std::string varName = M.getModuleIdentifier() + "_" + std::to_string(randomNum) + "_caller_" + std::to_string(counter) + "_" + std::to_string(countList[counter]);
         
         // Create a more stable reference using function pointer for entry blocks
         Constant* addrValue = nullptr;
@@ -223,7 +228,9 @@ void insertAddrListtoSection(Module& M,
         if (!BB || !BB->getParent()) continue;
             
         Function* parentFunc = BB->getParent();
-        std::string varName = "return_" + std::to_string(counter);
+        srand(time(NULL) + counter); // Seed with time + callerNum for more variation
+        int randomNum = rand() % 1000;  // Random number between 0-99
+        std::string varName = M.getModuleIdentifier() + "_" + std::to_string(randomNum) + "_return_" + std::to_string(counter);
         
         Constant* addrValue = nullptr;
         if (BB == &parentFunc->getEntryBlock()) {
@@ -252,7 +259,7 @@ void insertAddrListtoSection(Module& M,
 // Helper function that does the actual graph construction and output
 void interproceduralGraphImpl(Module& M, CallGraph& CG) {
     InterproceduralGraph IPG;
-    errs() << "in interProceduralGraph" <<"\n";
+    // errs() << "in interProceduralGraph" <<"\n";
     IPG.findReturnEdges(CG);
     // Convert map to lists
     for (const auto& pair : IPG.returnBlockMap) {
