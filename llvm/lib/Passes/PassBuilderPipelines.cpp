@@ -1611,7 +1611,7 @@ PassBuilder::buildPerModuleDefaultPipeline(OptimizationLevel Level,
     return buildO0DefaultPipeline(Level, Phase);
 
   ModulePassManager MPM;
-  MPM.addPass(InterproceduralGraphPass());
+  // MPM.addPass(InterproceduralGraphPass());
 
   // Convert @llvm.global.annotations to !annotation metadata.
   MPM.addPass(Annotation2MetadataPass());
@@ -2142,7 +2142,7 @@ PassBuilder::buildO0DefaultPipeline(OptimizationLevel Level,
          "buildO0DefaultPipeline should only be used with O0");
 
   ModulePassManager MPM;
-  MPM.addPass(InterproceduralGraphPass());
+  // MPM.addPass(InterproceduralGraphPass());
 
 
   // Perform pseudo probe instrumentation in O0 mode. This is for the

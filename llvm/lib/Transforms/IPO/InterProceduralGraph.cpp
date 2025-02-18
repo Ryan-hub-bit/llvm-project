@@ -532,17 +532,28 @@ struct InterproceduralGraph {
                                     }
                                 }
 
+                                // for (BasicBlock& calleeBB : *callee) {
+                                //     for (Instruction& I : calleeBB) {
+                                //         if (isa<ReturnInst>(I)) {
+                                //             Node calleeNode = Node(
+                                //                 calleeBB.getName().str(),
+                                //                 &calleeBB,
+                                //                 callee->getName().str()
+                                //             );
+                                //             BasicBlock* calleesig = getSig(calleeNode);
+                                //             returnBlockMap[callersig].insert(calleesig);
+                                //         }
+                                //     }
+                                // }
                                 for (BasicBlock& calleeBB : *callee) {
-                                    for (Instruction& I : calleeBB) {
-                                        if (isa<ReturnInst>(&I)) {
-                                            Node calleeNode = Node(
-                                                calleeBB.getName().str(),
-                                                &calleeBB,
-                                                callee->getName().str()
-                                            );
-                                            BasicBlock* calleesig = getSig(calleeNode);
-                                            returnBlockMap[callersig].insert(calleesig);
-                                        }
+                                    if (isa<ReturnInst>(calleeBB.getTerminator())) {
+                                        Node calleeNode = Node(
+                                            calleeBB.getName().str(),
+                                            &calleeBB,
+                                            callee->getName().str()
+                                        );
+                                        BasicBlock* calleesig = getSig(calleeNode);
+                                        returnBlockMap[callersig].insert(calleesig);
                                     }
                                 }
                             }

@@ -5077,6 +5077,22 @@ static bool isIndirectCall(const CGCallee &Callee) {
   return !llvm::isa<llvm::Function>(FuncPtr); // Indirect if not a direct function
 }
 
+// static bool isLibraryFunction(const CGCallee &Callee) {
+//  if (const CallExpr *CE = Callee.getAbstractInfo().getCallExpr()) {
+//     // Try to get the function being called through std::function
+//     if (const Expr *Called = CE->getCallee()) {
+//       if (const DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(Called->IgnoreParenCasts())) {
+//         if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(DRE->getDecl())) {
+//           // If it's a function from our code (not from library/ast file)
+//           if (!FD->isFromASTFile()) {
+//             return false;
+//           }
+//         }
+//       }
+//     }
+//   }
+//   return true;
+// }
 RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
                                  const CGCallee &Callee,
                                  ReturnValueSlot ReturnValue,
@@ -5766,6 +5782,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
 
   if (CGM.getCodeGenOpts().MatchIndirectCall && isIndirectCall(Callee)) {
 
+    // if(!isLibraryFunction(Callee)){
     assert((TargetDecl && TargetDecl->getFunctionType() ||
             Callee.getAbstractInfo().getCalleeFunctionProtoType()) &&
            "cannot find callee type");
@@ -5784,6 +5801,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
           llvm::MetadataAsValue::get(getLLVMContext(), TypeIdMD);
       BundleList.emplace_back("type", TypeIdMDVal);
     }
+    // }
   }
 
   // Emit the actual call/invoke instruction.
