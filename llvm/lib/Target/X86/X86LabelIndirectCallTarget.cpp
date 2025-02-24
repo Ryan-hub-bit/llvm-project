@@ -258,73 +258,142 @@ std::string modifyReturnTarget(const std::string& originalStr, int value1, uint6
 bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF) {
 
     // jump table label first
-      Function &F = MF.getFunction();
+    Function &F = MF.getFunction();
     StringRef moIdentifier = F.getParent()->getModuleIdentifier();
-    bool havejumptable = false;
-    // Process jump tables
-    MachineJumpTableInfo *JumpTableInfo = MF.getJumpTableInfo();
-    if (JumpTableInfo) {
-        havejumptable = true;
-    
+    MachineJumpTableInfo *JTI = MF.getJumpTableInfo();
+    if (JTI) {
+    // Map to store JumpTable Index -> Source BB mapping
+    std::map<unsigned, MachineBasicBlock*> JumpTableSources;
+
+    // Scan once to find all jump table sources
+    for (MachineBasicBlock &MBB : MF) {
+        for ( MachineInstr &MI : MBB) {
+            for (const MachineOperand &MO : MI.operands()) {
+                if (MO.isJTI()) {
+                    unsigned JTIndex = MO.getIndex();
+                    JumpTableSources[JTIndex] = MI.getParent();
+                }
+            }
+        }
     }
-    if(havejumptable) {
-        for (unsigned JTIndex = 0; JTIndex < JumpTableInfo->getJumpTables().size(); ++JTIndex) {
-            const MachineJumpTableEntry &JTEntry = JumpTableInfo->getJumpTables()[JTIndex];
-            
-            // Handle indirect jump instruction
-            MachineInstr *indirectJumpInstr = traceIndirectJumps(MF, JTIndex, JumpTableInfo);
-            if (indirectJumpInstr) {
-                // Get the basic block containing the indirect jump
-                MachineBasicBlock *JumpMBB = indirectJumpInstr->getParent();
-                
-                // Set label for the basic block containing indirect jump
-                if (!JumpMBB->empty()) {
-                    MachineInstr &FirstInstr = JumpMBB->front();
+    errs() << "JTSource:" << JumpTableSources.size() <<"\n";
+    errs() << "size:" << JTI->getJumpTables().size() <<"\n";
+        // Now you have all jump tables' sources
+    for (unsigned JTIndex = 0; JTIndex < JTI->getJumpTables().size(); JTIndex++) {
+        if (auto *SourceBB = JumpTableSources[JTIndex]) {
+            errs() << "sourceBB:" <<JTIndex << SourceBB <<"\n";
+            errs() << "Jump Table " << JTIndex << " source block: " << SourceBB->getNumber() << "\n";
+            // You can also get targets:
+            if(!SourceBB -> empty()){
+                MachineInstr &FirstInstr = SourceBB->front();
                     if(FirstInstr.getPreInstrSymbol()) {  // Check if first instruction has a symbol
                         MCSymbol *Label = FirstInstr.getPreInstrSymbol();
-                        std::string labelName = Label->getName().str();
-                        const std::string& labelRef = labelName;
-                        std::string modifiedLabel = modifyJumptableLabel(labelRef, RunCount);
+                        std::string labelN = Label->getName().str();
+                        const std::string& labelR = labelN;
+                        std::string modifiedLabel = modifyJumptableLabel(labelR, Runcount);
+                        errs()<< "modifiedLabel:" << modifiedLabel <<"\n";
                         MCSymbol *newLabel = MF.getContext().getOrCreateSymbol(modifiedLabel);
                         FirstInstr.setPreInstrSymbol(MF, newLabel);
                     } else {
                         const std::string& labelName = initializeLabel(moIdentifier);
-                        std::string modifiedLabel = modifyJumptableLabel(labelName, RunCount);
-                        errs()<< "modifiedLabel:" << modifiedLabel <<"\n";
+                        std::string modifiedLabel = modifyJumptableLabel(labelName, Runcount);
+                        errs()<< "initializeLable:" << modifiedLabel <<"\n";
                         MCSymbol *Label = MF.getContext().getOrCreateSymbol(modifiedLabel);
                         FirstInstr.setPreInstrSymbol(MF, Label);
                     }
-                }
 
-                // Handle jump table entries
-                if (MaxEntrySize < JTEntry.MBBs.size()) {
-                    MaxEntrySize = JTEntry.MBBs.size();
-                }
-                
-                for (unsigned EntryIndex = 0; EntryIndex < JTEntry.MBBs.size(); ++EntryIndex) {
-                    MachineBasicBlock *TargetMBB = JTEntry.MBBs[EntryIndex];
-                    if (!TargetMBB->empty()) {
-                        MachineInstr &FirstInstr = TargetMBB->front();
-                        if(FirstInstr.getPreInstrSymbol()) {
-                            MCSymbol *Label = FirstInstr.getPreInstrSymbol();
-                            std::string labelName = Label->getName().str();
-                            const std::string& labelRef = labelName;
-                            std::string modifiedLabel = modifyJumpEntry(labelRef, RunCount, EntryIndex + 1);
-                            MCSymbol *newLabel = MF.getContext().getOrCreateSymbol(modifiedLabel);
-                            FirstInstr.setPreInstrSymbol(MF, newLabel);
-                        } else {
-                            const std::string& labelName = initializeLabel(moIdentifier);
-                            std::string modifiedLabel = modifyJumpEntry(labelName, RunCount, EntryIndex + 1);
-                            errs()<< "modifiedLabel:" << modifiedLabel <<"\n";
-                            MCSymbol *Label = MF.getContext().getOrCreateSymbol(modifiedLabel);
-                            FirstInstr.setPreInstrSymbol(MF, Label);
-                        }
-                    }
-                }
-                RunCount++;
             }
+            const MachineJumpTableEntry &JTE = JTI->getJumpTables()[JTIndex];
+            for (unsigned EntryIndex = 0; EntryIndex < JTE.MBBs.size(); EntryIndex++) {
+                            MachineBasicBlock *TargetMBB = JTE.MBBs[EntryIndex];
+                            if (!TargetMBB->empty()) {
+                                MachineInstr &FirstInstr = TargetMBB->front();
+                                if(FirstInstr.getPreInstrSymbol()) {
+                                    MCSymbol *Label = FirstInstr.getPreInstrSymbol();
+                                    std::string labelName = Label->getName().str();
+                                    const std::string& labelRef = labelName;
+                                    std::string modifiedLabel = modifyJumpEntry(labelRef, Runcount, EntryIndex + 1);
+                                    // errs()<< "modifiedLabel:" << modifiedLabel <<"\n";
+                                    MCSymbol *newLabel = MF.getContext().getOrCreateSymbol(modifiedLabel);
+                                    FirstInstr.setPreInstrSymbol(MF, newLabel);
+                                } else {
+                                    const std::string& labelName = initializeLabel(moIdentifier);
+                                    std::string modifiedLabel = modifyJumpEntry(labelName, Runcount, EntryIndex + 1);
+                                    MCSymbol *Label = MF.getContext().getOrCreateSymbol(modifiedLabel);
+                                    FirstInstr.setPreInstrSymbol(MF, Label);
+                                }
+                            }
+                 }
         }
+        Runcount ++;
     }
+}
+    // bool havejumptable = false;
+    // // Process jump tables
+    // MachineJumpTableInfo *JumpTableInfo = MF.getJumpTableInfo();
+    // if (JumpTableInfo) {
+    //     havejumptable = true;
+    
+    // }
+    // if(havejumptable) {
+    //     for (unsigned JTIndex = 0; JTIndex < JumpTableInfo->getJumpTables().size(); ++JTIndex) {
+    //         const MachineJumpTableEntry &JTEntry = JumpTableInfo->getJumpTables()[JTIndex];
+            
+    //         // Handle indirect jump instruction
+    //         MachineInstr *indirectJumpInstr = traceIndirectJumps(MF, JTIndex, JumpTableInfo);
+    //         errs() << "JTIndex:" << JTIndex <<"\n";
+    //         if (indirectJumpInstr) {
+    //             // Get the basic block containing the indirect jump
+    //             MachineBasicBlock *JumpMBB = indirectJumpInstr->getParent();
+                
+    //             // Set label for the basic block containing indirect jump
+    //             if (!JumpMBB->empty()) {
+    //                 MachineInstr &FirstInstr = JumpMBB->front();
+    //                 if(FirstInstr.getPreInstrSymbol()) {  // Check if first instruction has a symbol
+    //                     MCSymbol *Label = FirstInstr.getPreInstrSymbol();
+    //                     std::string labelName = Label->getName().str();
+    //                     const std::string& labelRef = labelName;
+    //                     std::string modifiedLabel = modifyJumptableLabel(labelRef, JTIndex + 1);
+    //                     errs()<< "modifiedLabel:" << modifiedLabel <<"\n";
+    //                     MCSymbol *newLabel = MF.getContext().getOrCreateSymbol(modifiedLabel);
+    //                     FirstInstr.setPreInstrSymbol(MF, newLabel);
+    //                 } else {
+    //                     const std::string& labelName = initializeLabel(moIdentifier);
+    //                     std::string modifiedLabel = modifyJumptableLabel(labelName, JTIndex + 1);
+    //                     errs()<< "initializeLable:" << modifiedLabel <<"\n";
+    //                     MCSymbol *Label = MF.getContext().getOrCreateSymbol(modifiedLabel);
+    //                     FirstInstr.setPreInstrSymbol(MF, Label);
+    //                 }
+    //             }
+
+    //             // Handle jump table entries
+    //             if (MaxEntrySize < JTEntry.MBBs.size()) {
+    //                 MaxEntrySize = JTEntry.MBBs.size();
+    //             }
+                
+    //             for (unsigned EntryIndex = 0; EntryIndex < JTEntry.MBBs.size(); ++EntryIndex) {
+    //                 MachineBasicBlock *TargetMBB = JTEntry.MBBs[EntryIndex];
+    //                 if (!TargetMBB->empty()) {
+    //                     MachineInstr &FirstInstr = TargetMBB->front();
+    //                     if(FirstInstr.getPreInstrSymbol()) {
+    //                         MCSymbol *Label = FirstInstr.getPreInstrSymbol();
+    //                         std::string labelName = Label->getName().str();
+    //                         const std::string& labelRef = labelName;
+    //                         std::string modifiedLabel = modifyJumpEntry(labelRef, JTIndex + 1, EntryIndex + 1);
+    //                         // errs()<< "modifiedLabel:" << modifiedLabel <<"\n";
+    //                         MCSymbol *newLabel = MF.getContext().getOrCreateSymbol(modifiedLabel);
+    //                         FirstInstr.setPreInstrSymbol(MF, newLabel);
+    //                     } else {
+    //                         const std::string& labelName = initializeLabel(moIdentifier);
+    //                         std::string modifiedLabel = modifyJumpEntry(labelName, JTIndex  + 1, EntryIndex + 1);
+    //                         MCSymbol *Label = MF.getContext().getOrCreateSymbol(modifiedLabel);
+    //                         FirstInstr.setPreInstrSymbol(MF, Label);
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
 
     const auto &CallSitesInfoMap = MF.getCallSitesInfo();  // Use '.' instead of '->'
     const TargetMachine &TM = MF.getTarget();  // Ensure TargetMachine is referenced correctly
@@ -555,12 +624,12 @@ bool X86LabelIndirectCallTarget::isJumpTableLoad(MachineInstr &MI, const Machine
 
     // First check memory operands for jump table metadata
     for (const MachineMemOperand *MMO : MI.memoperands()) {
-        // LLVM_DEBUG(dbgs() << "  Checking memory operand flags: " << MMO->getFlags() << "\n");
+        LLVM_DEBUG(dbgs() << "  Checking memory operand flags: " << MMO->getFlags() << "\n");
         if (MMO->getValue()) {
             StringRef ValueName = MMO->getValue()->getName();
-            // LLVM_DEBUG(dbgs() << "    Memory value name: '" << ValueName << "'\n");
+            LLVM_DEBUG(dbgs() << "    Memory value name: '" << ValueName << "'\n");
             if (ValueName.contains("jump-table")) {
-                // LLVM_DEBUG(dbgs() << "    Found jump table in memory value name\n");
+                LLVM_DEBUG(dbgs() << "    Found jump table in memory value name\n");
                 return true;
             }
         }
@@ -606,7 +675,7 @@ bool X86LabelIndirectCallTarget::isJumpTableLoad(MachineInstr &MI, const Machine
                 // LLVM_DEBUG(dbgs() << "      Checking: " << *MBBI << "\n");
                 
                 if (MBBI->getOpcode() == X86::LEA64r) {
-                    // LLVM_DEBUG(dbgs() << "      Found LEA64r\n");
+                    LLVM_DEBUG(dbgs() << "      Found LEA64r\n");
                     
                     // Verify this LEA defines our base register
                     const MachineOperand &DefReg = MBBI->getOperand(0);
@@ -619,9 +688,9 @@ bool X86LabelIndirectCallTarget::isJumpTableLoad(MachineInstr &MI, const Machine
                     for (const MachineOperand &MO : MBBI->operands()) {
                         if (MO.isSymbol()) {
                             StringRef SymName = MO.getSymbolName();
-                            // LLVM_DEBUG(dbgs() << "      Checking symbol: '" << SymName << "'\n");
+                            LLVM_DEBUG(dbgs() << "      Checking symbol: '" << SymName << "'\n");
                             if (SymName.contains("jump-table")) {
-                                // LLVM_DEBUG(dbgs() << "      Found jump table symbol!\n");
+                                LLVM_DEBUG(dbgs() << "      Found jump table symbol!\n");
                                 return true;
                             }
                         }
