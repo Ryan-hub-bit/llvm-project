@@ -291,7 +291,26 @@ bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF) {
 
     // jump table label first
     Function &F = MF.getFunction();
-    StringRef moIdentifier = F.getParent()->getModuleIdentifier();
+    StringRef modulestr = F.getParent()->getModuleIdentifier();
+    std::string moIdentifierstr = modulestr.str();
+
+
+    // Replace '-' with '.'
+    size_t pos = 0;
+    while ((pos = moIdentifierstr.find('-', pos)) != std::string::npos) {
+        moIdentifierstr[pos] = '.';
+        pos++;
+    }
+
+    // Replace '_' with '.'
+    pos = 0;
+    while ((pos = moIdentifierstr.find('_', pos)) != std::string::npos) {
+        moIdentifierstr[pos] = '.';
+        pos++;
+    }
+
+    // Convert back to StringRef if needed
+    StringRef moIdentifier(moIdentifierstr);
     MachineJumpTableInfo *JTI = MF.getJumpTableInfo();
     if (JTI) {
     // Map to store JumpTable Index -> Source BB mapping
@@ -374,11 +393,11 @@ bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF) {
                     // Generate labelName based on callsiteID
                     if (auto *TypeId = CallSiteInfo->second.TypeId) {
                         uint64_t TypeIdVal = TypeId->getZExtValue();  // Can be used later if needed
-                        lastTypeId = TypeIdVal;
+                        // lastTypeId = TypeIdVal;
                         if (X86LabelIndirectCallTarget::TailJumps.count(MI.getOpcode())) {
                             std::string labelName = "tailcallsite_" + std::to_string(tailcallID);
                             callsitetoTypeID[labelName].insert(TypeIdVal);
-
+                            
                             // MCSymbol *Label = MF.getContext().getOrCreateSymbol(labelName);
                             llvm::MachineInstr* MIptr = &MI;
                              if(MIptr->getPreInstrSymbol()) {
