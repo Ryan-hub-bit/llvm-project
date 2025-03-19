@@ -17,6 +17,13 @@
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/ADT/Statistic.h"
+#include <fstream>
+#include <iostream> 
+#include <sstream> // For std::stringstream
+
+
+
+
 using namespace llvm;
 
 // FIXME: create a new label system to avoid the one instruction can only be labeled once 
@@ -77,14 +84,14 @@ static uint64_t extractNumericCGTypeId(const Function &F) {
     // Directly return the hash value
     return llvm::MD5Hash(MDGeneralizedTypeId->getString());
 }
-// modifier-jumptableindex-tailcallID-callsiteID-calleeTypeID-t-jumptableIndex-jumpEntryIndex-returnID-FunctionID-functionhash-functionTypeID
+// modifier-jumptableindex-tailcallID-callsiteID-calleeTypeID-DtailcallID-t-jumptableIndex-jumpEntryIndex-returnID-FunctionID-functionhash-functionTypeID
 static const std::string& initializeLabel(StringRef moIdentifier) {
     static std::string result = moIdentifier.str();
     // Only initialize if this is the first call
     static bool initialized = false;
     if (!initialized) {
         // Add elements 2-5 (four zeros)
-        for(int i = 0; i < 4; i++) {
+        for(int i = 0; i < 5; i++) {
             result += "-0";
         }
         // Add element 6 ('t')
@@ -100,6 +107,7 @@ static const std::string& initializeLabel(StringRef moIdentifier) {
     return result;
 }
 
+// modifier-jumptableindex-tailcallID-callsiteID-calleeTypeID-DtailcallID-t-jumptableIndex-jumpEntryIndex-returnID-FunctionID-functionhash-functionTypeID
 std::string modifyJumptableLabel(const std::string& originalStr, int value1) {
     std::vector<std::string> elements;
     std::string temp;
@@ -129,7 +137,7 @@ std::string modifyJumptableLabel(const std::string& originalStr, int value1) {
     
     return result;
 }
-
+// modifier-jumptableindex-tailcallID-callsiteID-calleeTypeID-DtailcallID-t-jumptableIndex-jumpEntryIndex-returnID-FunctionID-functionhash-functionTypeID
 std::string modifyJumpEntry(const std::string& originalStr, int value1, int value2) {
     std::vector<std::string> elements;
     std::string temp;
@@ -147,9 +155,9 @@ std::string modifyJumpEntry(const std::string& originalStr, int value1, int valu
     elements.push_back(temp);
 
     // Modify only seventh and eighth elements (index 6 and 7)
-    if(elements.size() >= 8) {
-        elements[6] = std::to_string(value1);
-        elements[7] = std::to_string(value2);
+    if(elements.size() >= 9) {
+        elements[7] = std::to_string(value1);
+        elements[8] = std::to_string(value2);
     }
     
     // Reconstruct the string
@@ -159,6 +167,7 @@ std::string modifyJumpEntry(const std::string& originalStr, int value1, int valu
     }
     return result;
 }
+// modifier-jumptableindex-tailcallID-callsiteID-calleeTypeID-DtailcallID-t-jumptableIndex-jumpEntryIndex-returnID-FunctionID-functionhash-functionTypeID
 std::string modifyTailcallSource(const std::string& originalStr, int value1, uint64_t value2) {
     std::vector<std::string> elements;
     std::string temp;
@@ -191,6 +200,36 @@ std::string modifyTailcallSource(const std::string& originalStr, int value1, uin
     return result;
 }
 
+// modifier-jumptableindex-tailcallID-callsiteID-calleeTypeID-DtailcallID-t-jumptableIndex-jumpEntryIndex-returnID-FunctionID-functionhash-functionTypeID
+std::string modifydirectTailcallSource(const std::string& originalStr, int value1) {
+    std::vector<std::string> elements;
+    std::string temp;
+    
+    // Split the original string by '-'
+    for(char c : originalStr) {
+        if(c == '-') {
+            elements.push_back(temp);
+            temp.clear();
+        } else {
+            temp += c;
+        }
+    }
+    // Don't forget to add the last element
+    elements.push_back(temp);
+    
+    // Modify elements at index 2 and 4
+    if(elements.size() >= 6) {  // Changed from 8 to 5 since we now need at least 5 elements
+        elements[5] = std::to_string(value1);
+    }
+    
+    // Reconstruct the string
+    std::string result = elements[0];
+    for(size_t i = 1; i < elements.size(); i++) {
+        result += "-" + elements[i];
+    }
+    return result;
+}
+// modifier-jumptableindex-tailcallID-callsiteID-calleeTypeID-DtailcallID-t-jumptableIndex-jumpEntryIndex-returnID-FunctionID-functionhash-functionTypeID
 std::string modifyCallsiteSource(const std::string& originalStr, int value1, uint64_t value2) {
     std::vector<std::string> elements;
     std::string temp;
@@ -223,6 +262,7 @@ std::string modifyCallsiteSource(const std::string& originalStr, int value1, uin
     }
     return result;
 }
+// modifier-jumptableindex-tailcallID-callsiteID-calleeTypeID-DtailcallID-t-jumptableIndex-jumpEntryIndex-returnID-FunctionID-functionhash-functionTypeID
 std::string modifyReturnTarget(const std::string& originalStr, int value1, uint64_t value2, uint64_t value3) {
     std::vector<std::string> elements;
     std::string temp;
@@ -254,7 +294,7 @@ std::string modifyReturnTarget(const std::string& originalStr, int value1, uint6
     }
     return result;
 }
-
+// modifier-jumptableindex-tailcallID-callsiteID-calleeTypeID-DtailcallID-t-jumptableIndex-jumpEntryIndex-returnID-FunctionID-functionhash-functionTypeID
 std::string modifyFunctionStarting(const std::string& originalStr, int value1, uint64_t value2, uint64_t value3) {
     std::vector<std::string> elements;
     std::string temp;
@@ -311,22 +351,75 @@ bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF) {
 
     // Convert back to StringRef if needed
     StringRef moIdentifier(moIdentifierstr);
+
+    //direct tail call 
+    for (MachineBasicBlock &MBB : MF) {
+        for ( MachineInstr &MI : MBB) {
+             unsigned Opc = MI.getOpcode();
+                if(MI.isCall()) {
+                    if (Opc == X86::TCRETURNdi || Opc == X86::TAILJMPd64 || Opc == X86::TAILJMPd_CC){
+                        // errs() << "opc:" << Opc<<"\n";
+                        llvm::MachineInstr* MIptr = &MI;
+                             if(MIptr->getPreInstrSymbol()) {
+                                MCSymbol *Label = MIptr->getPreInstrSymbol();
+                                std::string labelName = Label->getName().str();  // Store it somewhere permanent
+                                const std::string& labelRef = labelName;
+                                std::string modifiedLabel = modifydirectTailcallSource(labelRef, DtailcallID);
+                                MCSymbol *newLabel = MF.getContext().getOrCreateSymbol(modifiedLabel);
+                                MIptr->setPreInstrSymbol(MF, newLabel);
+                             } else {
+                                const std::string& labelName = initializeLabel(moIdentifier);
+                                std::string modifiedLabel = modifydirectTailcallSource(labelName,DtailcallID);
+                                // errs()<< "direct tailcall modifiedLabel:" << modifiedLabel <<"\n";
+                                MCSymbol *Label = MF.getContext().getOrCreateSymbol(modifiedLabel);
+                                MIptr->setPreInstrSymbol(MF, Label);
+                             }
+                             DtailcallID ++;
+                    }
+                }
+                
+            }
+        }
     MachineJumpTableInfo *JTI = MF.getJumpTableInfo();
     if (JTI) {
     // Map to store JumpTable Index -> Source BB mapping
     std::map<unsigned, MachineBasicBlock*> JumpTableSources;
 
     // Scan once to find all jump table sources
+    // for (MachineBasicBlock &MBB : MF) {
+    //     for ( MachineInstr &MI : MBB) {
+    //         for (const MachineOperand &MO : MI.operands()) {
+    //             if (MO.isJTI()) {
+    //                 unsigned JTIndex = MO.getIndex();
+
+    //                 JumpTableSources[JTIndex] = MI.getParent();
+    //             }
+    //         }
+    //     }
+    // }
     for (MachineBasicBlock &MBB : MF) {
-        for ( MachineInstr &MI : MBB) {
-            for (const MachineOperand &MO : MI.operands()) {
-                if (MO.isJTI()) {
-                    unsigned JTIndex = MO.getIndex();
-                    JumpTableSources[JTIndex] = MI.getParent();
+    for (MachineInstr &MI : MBB) {
+        for (const MachineOperand &MO : MI.operands()) {
+            if (MO.isJTI()) {
+                unsigned JTIndex = MO.getIndex();
+                MachineBasicBlock *ParentBlock = MI.getParent();
+                
+                // Check if this block's terminator is an indirect branch
+                if (!ParentBlock->empty()) {
+                    MachineInstr &TermInstr = ParentBlock->instr_back();
+                    if (TermInstr.isIndirectBranch()) {
+                        // Only assign as jump table source if it has an indirect branch terminator
+                        JumpTableSources[JTIndex] = ParentBlock;
+                    }
                 }
             }
         }
     }
+}
+
+    
+
+
     // errs() << "JTSource:" << JumpTableSources.size() <<"\n";
     // errs() << "size:" << JTI->getJumpTables().size() <<"\n";
         // Now you have all jump tables' sources
@@ -348,7 +441,30 @@ bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF) {
                     } else {
                         const std::string& labelName = initializeLabel(moIdentifier);
                         std::string modifiedLabel = modifyJumptableLabel(labelName, Runcount);
-                        // errs()<< "initializeLable:" << modifiedLabel <<"\n";
+                        // if(modifiedLabel== "sds_c_9_0_0_0_0_t_0_0_0_0_0_type")
+                        // {
+                        //     // Open the file to write the content
+                        // std::ofstream outFile("/home/isec/Documents/llvm-project/build/test/sourceBB_content.txt", std::ios::app); // Open file in append mode
+                        // if (outFile.is_open()) {
+                        //     outFile << "Jump Table " << JTIndex << " source block: " << SourceBB->getNumber() << "\n";
+                        //     for (auto &Instr : *SourceBB) {
+                        //         outFile << Instr << "\n"; // Write the instruction to the file
+                        //     }
+                        //     outFile.close(); // Close the file after writing
+                        // } else {
+                        //     errs() << "Failed to open file for writing.\n";
+                        // }
+                        // }
+                         // Check if the label matches the specific one you want
+                    //   if (modifiedLabel == "sds.c-9-0-0-0-0-t-0-0-0-0-0-type") {
+                    //         // Print the content to console instead of writing to file
+                    //         errs() << "get modifiedLabel" << "\n";
+                    //         errs() << "Jump Table " << JTIndex << " source block: " << SourceBB->getNumber() << "\n";
+                    //         for (auto &Instr : *SourceBB) {
+                    //             errs() << "Instruction: " << Instr << "\n"; // Print the instruction directly to console
+                    //         }
+                    //     }
+                        errs()<< "jumptableLabel:" << modifiedLabel <<"\n";
                         MCSymbol *Label = MF.getContext().getOrCreateSymbol(modifiedLabel);
                         FirstInstr.setPreInstrSymbol(MF, Label);
                     }
@@ -387,7 +503,7 @@ bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF) {
      //logic for tail call and indirect call
     for (auto &MBB : MF) {
         for (auto &MI : MBB) {
-            if (TM.Options.MatchIndirectCall && MI.isCall()) {
+            if (MI.isCall()) {
                 const auto &CallSiteInfo = CallSitesInfoMap.find(&MI);
                 if (CallSiteInfo != CallSitesInfoMap.end()) {
                     // Generate labelName based on callsiteID
@@ -431,7 +547,7 @@ bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF) {
                              } else {
                                 const std::string& labelName = initializeLabel(moIdentifier);
                                 std::string modifiedLabel = modifyCallsiteSource(labelName, callsiteID, TypeIdVal);
-                                // errs()<< "modifiedLabel:" << modifiedLabel <<"\n";
+                                errs()<< "modifiedLabel:" << modifiedLabel <<"\n";
                                 MCSymbol *Label = MF.getContext().getOrCreateSymbol(modifiedLabel);
                                 MIptr->setPreInstrSymbol(MF, Label);
                              }
