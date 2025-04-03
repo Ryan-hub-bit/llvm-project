@@ -2885,75 +2885,75 @@ void CodeGenModule::CreateFunctionTypeMetadataForIcall(const FunctionDecl *FD,
       F->addTypeMetadata(0, llvm::ConstantAsMetadata::get(CrossDsoTypeId));
 }
 
-// void CodeGenModule::CreateFunctionTypeMetadataForIcall(const QualType &QT,
-//                                                        llvm::CallBase *CB) {
-//   // Only if needed for call graph section and only for indirect calls.
-//   if (!CodeGenOpts.MatchIndirectCall || !CB || !CB->isIndirectCall())
-//     return;
-
-//   auto *MD = CreateMetadataIdentifierGeneralized(QT);
-//   auto *MDN = llvm::MDNode::get(getLLVMContext(), MD);
-//   CB->setMetadata(llvm::LLVMContext::MD_type, MDN);
-// }
-
 void CodeGenModule::CreateFunctionTypeMetadataForIcall(const QualType &QT,
                                                        llvm::CallBase *CB) {
-  // Debug: Print function entry
-  llvm::errs() << "DEBUG: Entering CreateFunctionTypeMetadataForIcall\n";
-
   // Only if needed for call graph section and only for indirect calls.
-  if (!CodeGenOpts.MatchIndirectCall) {
-    llvm::errs()
-        << "DEBUG: Early return - MatchIndirectCall option is disabled\n";
+  if (!CodeGenOpts.MatchIndirectCall || !CB || !CB->isIndirectCall())
     return;
-  }
 
-  if (!CB) {
-    llvm::errs() << "DEBUG: Early return - CallBase is null\n";
-    return;
-  }
-
-  if (!CB->isIndirectCall()) {
-    llvm::errs() << "DEBUG: Early return - Not an indirect call\n";
-    return;
-  }
-
-  llvm::errs() << "DEBUG: Processing indirect call at ";
-  if (CB->getDebugLoc()) {
-    CB->getDebugLoc().print(llvm::errs());
-  } else {
-    llvm::errs() << "unknown location";
-  }
-  llvm::errs() << "\n";
-
-  llvm::errs() << "DEBUG: QualType: " << QT.getAsString() << "\n";
-
-  // Print more details about the call instruction
-  llvm::errs() << "DEBUG: Call instruction: ";
-  CB->print(llvm::errs());
-  llvm::errs() << "\n";
-
-  // Before creating metadata
-  llvm::errs() << "DEBUG: About to create metadata identifier\n";
   auto *MD = CreateMetadataIdentifierGeneralized(QT);
-
-  if (!MD) {
-    llvm::errs() << "DEBUG: WARNING - Created metadata is null\n";
-    return;
-  }
-
-  llvm::errs() << "DEBUG: Created metadata: ";
-  MD->print(llvm::errs());
-  llvm::errs() << "\n";
-
-  llvm::errs() << "DEBUG: Creating MDNode\n";
   auto *MDN = llvm::MDNode::get(getLLVMContext(), MD);
-
-  llvm::errs() << "DEBUG: Setting metadata on call instruction\n";
   CB->setMetadata(llvm::LLVMContext::MD_type, MDN);
-
-  llvm::errs() << "DEBUG: Successfully added metadata to indirect call\n";
 }
+
+// void CodeGenModule::CreateFunctionTypeMetadataForIcall(const QualType &QT,
+//                                                        llvm::CallBase *CB) {
+//   // Debug: Print function entry
+//   llvm::errs() << "DEBUG: Entering CreateFunctionTypeMetadataForIcall\n";
+
+//   // Only if needed for call graph section and only for indirect calls.
+//   if (!CodeGenOpts.MatchIndirectCall) {
+//     llvm::errs()
+//         << "DEBUG: Early return - MatchIndirectCall option is disabled\n";
+//     return;
+//   }
+
+//   if (!CB) {
+//     llvm::errs() << "DEBUG: Early return - CallBase is null\n";
+//     return;
+//   }
+
+//   if (!CB->isIndirectCall()) {
+//     llvm::errs() << "DEBUG: Early return - Not an indirect call\n";
+//     return;
+//   }
+
+//   llvm::errs() << "DEBUG: Processing indirect call at ";
+//   if (CB->getDebugLoc()) {
+//     CB->getDebugLoc().print(llvm::errs());
+//   } else {
+//     llvm::errs() << "unknown location";
+//   }
+//   llvm::errs() << "\n";
+
+//   llvm::errs() << "DEBUG: QualType: " << QT.getAsString() << "\n";
+
+//   // Print more details about the call instruction
+//   llvm::errs() << "DEBUG: Call instruction: ";
+//   CB->print(llvm::errs());
+//   llvm::errs() << "\n";
+
+//   // Before creating metadata
+//   llvm::errs() << "DEBUG: About to create metadata identifier\n";
+//   auto *MD = CreateMetadataIdentifierGeneralized(QT);
+
+//   if (!MD) {
+//     llvm::errs() << "DEBUG: WARNING - Created metadata is null\n";
+//     return;
+//   }
+
+//   llvm::errs() << "DEBUG: Created metadata: ";
+//   MD->print(llvm::errs());
+//   llvm::errs() << "\n";
+
+//   llvm::errs() << "DEBUG: Creating MDNode\n";
+//   auto *MDN = llvm::MDNode::get(getLLVMContext(), MD);
+
+//   llvm::errs() << "DEBUG: Setting metadata on call instruction\n";
+//   CB->setMetadata(llvm::LLVMContext::MD_type, MDN);
+
+//   llvm::errs() << "DEBUG: Successfully added metadata to indirect call\n";
+// }
 
 void CodeGenModule::setKCFIType(const FunctionDecl *FD, llvm::Function *F) {
   llvm::LLVMContext &Ctx = F->getContext();

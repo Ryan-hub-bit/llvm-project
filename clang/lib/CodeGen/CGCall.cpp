@@ -5812,9 +5812,9 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(TargetDecl)) {
         // Type id metadata is set only for C/C++ contexts.
 
-        llvm::errs() << "before is CXX" << "\n";
+        // llvm::errs() << "before is CXX" << "\n";
         if (isCXXDeclType(FD)) {
-          llvm::errs() << "in CXXDeclType" << "\n";
+          // llvm::errs() << "in CXXDeclType" << "\n";
           CGM.CreateFunctionTypeMetadataForIcall(FD->getType(), *callOrInvoke);
         }
       }
