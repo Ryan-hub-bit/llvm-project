@@ -441,30 +441,7 @@ bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF) {
                     } else {
                         const std::string& labelName = initializeLabel(moIdentifier);
                         std::string modifiedLabel = modifyJumptableLabel(labelName, Runcount);
-                        // if(modifiedLabel== "sds_c_9_0_0_0_0_t_0_0_0_0_0_type")
-                        // {
-                        //     // Open the file to write the content
-                        // std::ofstream outFile("/home/isec/Documents/llvm-project/build/test/sourceBB_content.txt", std::ios::app); // Open file in append mode
-                        // if (outFile.is_open()) {
-                        //     outFile << "Jump Table " << JTIndex << " source block: " << SourceBB->getNumber() << "\n";
-                        //     for (auto &Instr : *SourceBB) {
-                        //         outFile << Instr << "\n"; // Write the instruction to the file
-                        //     }
-                        //     outFile.close(); // Close the file after writing
-                        // } else {
-                        //     errs() << "Failed to open file for writing.\n";
-                        // }
-                        // }
-                         // Check if the label matches the specific one you want
-                    //   if (modifiedLabel == "sds.c-9-0-0-0-0-t-0-0-0-0-0-type") {
-                    //         // Print the content to console instead of writing to file
-                    //         errs() << "get modifiedLabel" << "\n";
-                    //         errs() << "Jump Table " << JTIndex << " source block: " << SourceBB->getNumber() << "\n";
-                    //         for (auto &Instr : *SourceBB) {
-                    //             errs() << "Instruction: " << Instr << "\n"; // Print the instruction directly to console
-                    //         }
-                    //     }
-                        errs()<< "jumptableLabel:" << modifiedLabel <<"\n";
+                        // errs()<< "jumptableLabel:" << modifiedLabel <<"\n";
                         MCSymbol *Label = MF.getContext().getOrCreateSymbol(modifiedLabel);
                         FirstInstr.setPreInstrSymbol(MF, Label);
                     }
@@ -547,7 +524,7 @@ bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF) {
                              } else {
                                 const std::string& labelName = initializeLabel(moIdentifier);
                                 std::string modifiedLabel = modifyCallsiteSource(labelName, callsiteID, TypeIdVal);
-                                errs()<< "modifiedLabel:" << modifiedLabel <<"\n";
+                                errs()<< "indirect call modifiedLabel:" << modifiedLabel <<"\n";
                                 MCSymbol *Label = MF.getContext().getOrCreateSymbol(modifiedLabel);
                                 MIptr->setPreInstrSymbol(MF, Label);
                              }

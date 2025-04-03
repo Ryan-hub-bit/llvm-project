@@ -5077,22 +5077,7 @@ static bool isIndirectCall(const CGCallee &Callee) {
   return !llvm::isa<llvm::Function>(FuncPtr); // Indirect if not a direct function
 }
 
-// static bool isLibraryFunction(const CGCallee &Callee) {
-//  if (const CallExpr *CE = Callee.getAbstractInfo().getCallExpr()) {
-//     // Try to get the function being called through std::function
-//     if (const Expr *Called = CE->getCallee()) {
-//       if (const DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(Called->IgnoreParenCasts())) {
-//         if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(DRE->getDecl())) {
-//           // If it's a function from our code (not from library/ast file)
-//           if (!FD->isFromASTFile()) {
-//             return false;
-//           }
-//         }
-//       }
-//     }
-//   }
-//   return true;
-// }
+
 RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
                                  const CGCallee &Callee,
                                  ReturnValueSlot ReturnValue,
@@ -5781,7 +5766,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   Attrs = AllocAlignAttrEmitter.TryEmitAsCallSiteAttribute(Attrs);
 
   if (CGM.getCodeGenOpts().MatchIndirectCall && isIndirectCall(Callee)) {
-
+    // llvm::errs() << "in this function" << "\n";
     // if(!isLibraryFunction(Callee)){
     assert((TargetDecl && TargetDecl->getFunctionType() ||
             Callee.getAbstractInfo().getCalleeFunctionProtoType()) &&
@@ -5826,7 +5811,10 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       // Set type identifier metadata of indirect calls for call graph section.
       if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(TargetDecl)) {
         // Type id metadata is set only for C/C++ contexts.
+
+        llvm::errs() << "before is CXX" << "\n";
         if (isCXXDeclType(FD)) {
+          llvm::errs() << "in CXXDeclType" << "\n";
           CGM.CreateFunctionTypeMetadataForIcall(FD->getType(), *callOrInvoke);
         }
       }

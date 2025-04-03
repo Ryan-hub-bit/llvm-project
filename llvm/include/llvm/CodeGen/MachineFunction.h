@@ -488,10 +488,50 @@ public:
   };
 
 
+  // struct CallSiteInfo {
+  //   /// Vector of call argument and its forwarding register.
+  //   SmallVector<ArgRegPair, 1> ArgRegPairs;
+  //    /// Callee type id.
+  //   ConstantInt *TypeId = nullptr;
+
+  //   CallSiteInfo() {}
+
+  //   /// Extracts the numeric type id from the CallBase's type operand bundle,
+  //   /// and sets TypeId. This is used as type id for the indirect call in the
+  //   /// call graph section.
+  //   CallSiteInfo(const CallBase &CB) {
+  //     // Call graph section needs numeric type id only for indirect calls.
+  //     if (!CB.isIndirectCall())
+  //       return;
+
+  //     auto Opt = CB.getOperandBundle(LLVMContext::OB_type);
+  //     if (!Opt.has_value()) {
+  //       errs() << "warning: cannot find indirect call type operand bundle for  "
+  //                 "call graph section\n";
+  //       return;
+  //     }
+
+  //     // Get generalized type id string
+  //     auto OB = Opt.value();
+  //     assert(OB.Inputs.size() == 1 && "invalid input size");
+  //     auto *OBVal = OB.Inputs.front().get();
+  //     auto *TypeIdMD = cast<MetadataAsValue>(OBVal)->getMetadata();
+  //     auto *TypeIdStr = cast<MDString>(TypeIdMD);
+  //     assert(TypeIdStr->getString().ends_with(".generalized") &&
+  //            "invalid type identifier");
+
+  //     // Compute numeric type id from generalized type id string
+  //     uint64_t TypeIdVal = llvm::MD5Hash(TypeIdStr->getString());
+  //     IntegerType *Int64Ty = Type::getInt64Ty(CB.getContext());
+  //     TypeId = llvm::ConstantInt::get(Int64Ty, TypeIdVal, /*IsSigned=*/false);
+  //   }
+  // };
+
   struct CallSiteInfo {
     /// Vector of call argument and its forwarding register.
     SmallVector<ArgRegPair, 1> ArgRegPairs;
-     /// Callee type id.
+
+    /// Callee type id.
     ConstantInt *TypeId = nullptr;
 
     CallSiteInfo() {}
@@ -506,7 +546,7 @@ public:
 
       auto Opt = CB.getOperandBundle(LLVMContext::OB_type);
       if (!Opt.has_value()) {
-        errs() << "warning: cannot find indirect call type operand bundle for  "
+        errs() << "warning: cannot find indirect call type operand bundle for "
                   "call graph section\n";
         return;
       }
@@ -516,9 +556,22 @@ public:
       assert(OB.Inputs.size() == 1 && "invalid input size");
       auto *OBVal = OB.Inputs.front().get();
       auto *TypeIdMD = cast<MetadataAsValue>(OBVal)->getMetadata();
+
+      // Use safer type checking before casting
+      if (!isa<MDString>(TypeIdMD)) {
+        errs() << "warning: type operand is not an MDString in call graph "
+                  "section\n";
+        return;
+      }
+
       auto *TypeIdStr = cast<MDString>(TypeIdMD);
-      assert(TypeIdStr->getString().ends_with(".generalized") &&
-             "invalid type identifier");
+
+      // Verify the string has the expected format
+      if (!TypeIdStr->getString().ends_with(".generalized")) {
+        errs() << "warning: invalid type identifier - missing .generalized "
+                  "suffix\n";
+        return;
+      }
 
       // Compute numeric type id from generalized type id string
       uint64_t TypeIdVal = llvm::MD5Hash(TypeIdStr->getString());
