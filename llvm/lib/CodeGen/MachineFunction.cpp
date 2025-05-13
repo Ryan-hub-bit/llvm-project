@@ -155,7 +155,7 @@ void ilist_alloc_traits<MachineBasicBlock>::deleteNode(MachineBasicBlock *MBB) {
 }
 
 static inline Align getFnStackAlignment(const TargetSubtargetInfo *STI,
-                                           const Function &F) {
+                                        const Function &F) {
   if (auto MA = F.getFnStackAlign())
     return *MA;
   return STI->getFrameLowering()->getStackAlign();
@@ -256,9 +256,7 @@ void MachineFunction::initTargetMachineFunctionInfo(
   MFInfo = Target.createMachineFunctionInfo(Allocator, F, &STI);
 }
 
-MachineFunction::~MachineFunction() {
-  clear();
-}
+MachineFunction::~MachineFunction() { clear(); }
 
 void MachineFunction::clear() {
   Properties.reset();
@@ -312,16 +310,18 @@ const DataLayout &MachineFunction::getDataLayout() const {
 
 /// Get the JumpTableInfo for this function.
 /// If it does not already exist, allocate one.
-MachineJumpTableInfo *MachineFunction::
-getOrCreateJumpTableInfo(unsigned EntryKind) {
-  if (JumpTableInfo) return JumpTableInfo;
+MachineJumpTableInfo *
+MachineFunction::getOrCreateJumpTableInfo(unsigned EntryKind) {
+  if (JumpTableInfo)
+    return JumpTableInfo;
 
   JumpTableInfo = new (Allocator)
-    MachineJumpTableInfo((MachineJumpTableInfo::JTEntryKind)EntryKind);
+      MachineJumpTableInfo((MachineJumpTableInfo::JTEntryKind)EntryKind);
   return JumpTableInfo;
 }
 
-DenormalMode MachineFunction::getDenormalMode(const fltSemantics &FPType) const {
+DenormalMode
+MachineFunction::getDenormalMode(const fltSemantics &FPType) const {
   return F.getDenormalMode(FPType);
 }
 
@@ -341,7 +341,10 @@ MachineFunction::addFrameInst(const MCCFIInstruction &Inst) {
 /// ordering of the blocks within the function.  If a specific MachineBasicBlock
 /// is specified, only that block and those after it are renumbered.
 void MachineFunction::RenumberBlocks(MachineBasicBlock *MBB) {
-  if (empty()) { MBBNumbering.clear(); return; }
+  if (empty()) {
+    MBBNumbering.clear();
+    return;
+  }
   MachineFunction::iterator MBBI, E = end();
   if (MBB == nullptr)
     MBBI = begin();
@@ -435,10 +438,9 @@ MachineInstr *MachineFunction::CreateMachineInstr(const MCInstrDesc &MCID,
 
 /// Create a new MachineInstr which is a copy of the 'Orig' instruction,
 /// identical in all ways except the instruction has no parent, prev, or next.
-MachineInstr *
-MachineFunction::CloneMachineInstr(const MachineInstr *Orig) {
+MachineInstr *MachineFunction::CloneMachineInstr(const MachineInstr *Orig) {
   return new (InstructionRecycler.Allocate<MachineInstr>(Allocator))
-             MachineInstr(*this, *Orig);
+      MachineInstr(*this, *Orig);
 }
 
 MachineInstr &MachineFunction::cloneMachineInstrBundle(
@@ -582,9 +584,10 @@ MachineFunction::getMachineMemOperand(const MachineMemOperand *MMO,
 MachineMemOperand *
 MachineFunction::getMachineMemOperand(const MachineMemOperand *MMO,
                                       const AAMDNodes &AAInfo) {
-  MachinePointerInfo MPI = MMO->getValue() ?
-             MachinePointerInfo(MMO->getValue(), MMO->getOffset()) :
-             MachinePointerInfo(MMO->getPseudoValue(), MMO->getOffset());
+  MachinePointerInfo MPI =
+      MMO->getValue()
+          ? MachinePointerInfo(MMO->getValue(), MMO->getOffset())
+          : MachinePointerInfo(MMO->getPseudoValue(), MMO->getOffset());
 
   return new (Allocator) MachineMemOperand(
       MPI, MMO->getFlags(), MMO->getSize(), MMO->getBaseAlign(), AAInfo,
@@ -626,20 +629,16 @@ uint32_t *MachineFunction::allocateRegMask() {
 }
 
 ArrayRef<int> MachineFunction::allocateShuffleMask(ArrayRef<int> Mask) {
-  int* AllocMask = Allocator.Allocate<int>(Mask.size());
+  int *AllocMask = Allocator.Allocate<int>(Mask.size());
   copy(Mask, AllocMask);
   return {AllocMask, Mask.size()};
 }
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
-LLVM_DUMP_METHOD void MachineFunction::dump() const {
-  print(dbgs());
-}
+LLVM_DUMP_METHOD void MachineFunction::dump() const { print(dbgs()); }
 #endif
 
-StringRef MachineFunction::getName() const {
-  return getFunction().getName();
-}
+StringRef MachineFunction::getName() const { return getFunction().getName(); }
 
 void MachineFunction::print(raw_ostream &OS, const SlotIndexes *Indexes) const {
   OS << "# Machine code for function " << getName() << ": ";
@@ -660,8 +659,9 @@ void MachineFunction::print(raw_ostream &OS, const SlotIndexes *Indexes) const {
 
   if (RegInfo && !RegInfo->livein_empty()) {
     OS << "Function Live Ins: ";
-    for (MachineRegisterInfo::livein_iterator
-         I = RegInfo->livein_begin(), E = RegInfo->livein_end(); I != E; ++I) {
+    for (MachineRegisterInfo::livein_iterator I = RegInfo->livein_begin(),
+                                              E = RegInfo->livein_end();
+         I != E; ++I) {
       OS << printReg(I->first, TRI);
       if (I->second)
         OS << " in " << printReg(I->second, TRI);
@@ -696,44 +696,44 @@ bool MachineFunction::needsFrameMoves() const {
 
 namespace llvm {
 
-  template<>
-  struct DOTGraphTraits<const MachineFunction*> : public DefaultDOTGraphTraits {
-    DOTGraphTraits(bool isSimple = false) : DefaultDOTGraphTraits(isSimple) {}
+template <>
+struct DOTGraphTraits<const MachineFunction *> : public DefaultDOTGraphTraits {
+  DOTGraphTraits(bool isSimple = false) : DefaultDOTGraphTraits(isSimple) {}
 
-    static std::string getGraphName(const MachineFunction *F) {
-      return ("CFG for '" + F->getName() + "' function").str();
+  static std::string getGraphName(const MachineFunction *F) {
+    return ("CFG for '" + F->getName() + "' function").str();
+  }
+
+  std::string getNodeLabel(const MachineBasicBlock *Node,
+                           const MachineFunction *Graph) {
+    std::string OutStr;
+    {
+      raw_string_ostream OSS(OutStr);
+
+      if (isSimple()) {
+        OSS << printMBBReference(*Node);
+        if (const BasicBlock *BB = Node->getBasicBlock())
+          OSS << ": " << BB->getName();
+      } else
+        Node->print(OSS);
     }
 
-    std::string getNodeLabel(const MachineBasicBlock *Node,
-                             const MachineFunction *Graph) {
-      std::string OutStr;
-      {
-        raw_string_ostream OSS(OutStr);
+    if (OutStr[0] == '\n')
+      OutStr.erase(OutStr.begin());
 
-        if (isSimple()) {
-          OSS << printMBBReference(*Node);
-          if (const BasicBlock *BB = Node->getBasicBlock())
-            OSS << ": " << BB->getName();
-        } else
-          Node->print(OSS);
+    // Process string output to make it nicer...
+    for (unsigned i = 0; i != OutStr.length(); ++i)
+      if (OutStr[i] == '\n') { // Left justify
+        OutStr[i] = '\\';
+        OutStr.insert(OutStr.begin() + i + 1, 'l');
       }
-
-      if (OutStr[0] == '\n') OutStr.erase(OutStr.begin());
-
-      // Process string output to make it nicer...
-      for (unsigned i = 0; i != OutStr.length(); ++i)
-        if (OutStr[i] == '\n') {                            // Left justify
-          OutStr[i] = '\\';
-          OutStr.insert(OutStr.begin()+i+1, 'l');
-        }
-      return OutStr;
-    }
-  };
+    return OutStr;
+  }
+};
 
 } // end namespace llvm
 
-void MachineFunction::viewCFG() const
-{
+void MachineFunction::viewCFG() const {
 #ifndef NDEBUG
   ViewGraph(this, "mf" + getName());
 #else
@@ -742,8 +742,7 @@ void MachineFunction::viewCFG() const
 #endif // NDEBUG
 }
 
-void MachineFunction::viewCFGOnly() const
-{
+void MachineFunction::viewCFGOnly() const {
 #ifndef NDEBUG
   ViewGraph(this, "mf" + getName(), true);
 #else
@@ -766,9 +765,9 @@ Register MachineFunction::addLiveIn(MCRegister PReg,
     // may have been constrained to match some operation constraints.
     // In that case, check that the current register class includes the
     // physical register and is a sub class of the specified RC.
-    assert((VRegRC == RC || (VRegRC->contains(PReg) &&
-                             RC->hasSubClassEq(VRegRC))) &&
-            "Register class mismatch!");
+    assert((VRegRC == RC ||
+            (VRegRC->contains(PReg) && RC->hasSubClassEq(VRegRC))) &&
+           "Register class mismatch!");
     return VReg;
   }
   VReg = MRI.createVirtualRegister(RC);
@@ -789,7 +788,7 @@ MCSymbol *MachineFunction::getJTISymbol(unsigned JTI, MCContext &Ctx,
                                      : DL.getPrivateGlobalPrefix();
   SmallString<60> Name;
   raw_svector_ostream(Name)
-    << Prefix << "JTI" << getFunctionNumber() << '_' << JTI;
+      << Prefix << "JTI" << getFunctionNumber() << '_' << JTI;
   return Ctx.getOrCreateSymbol(Name);
 }
 
@@ -876,7 +875,8 @@ void MachineFunction::setCallSiteLandingPad(MCSymbol *Sym,
 
 unsigned MachineFunction::getTypeIDFor(const GlobalValue *TI) {
   for (unsigned i = 0, N = TypeInfos.size(); i != N; ++i)
-    if (TypeInfos[i] == TI) return i + 1;
+    if (TypeInfos[i] == TI)
+      return i + 1;
 
   TypeInfos.push_back(TI);
   return TypeInfos.size();
@@ -897,7 +897,7 @@ int MachineFunction::getFilterIDFor(ArrayRef<unsigned> TyIds) {
       // The new filter coincides with range [i, end) of the existing filter.
       return -(1 + i);
 
-try_next:;
+  try_next:;
   }
 
   // Add the new filter.
@@ -914,7 +914,7 @@ MachineFunction::getCallSiteInfo(const MachineInstr *MI) {
   assert(MI->isCandidateForCallSiteEntry() &&
          "Call site info refers only to call (MI) candidates");
 
-  if (!Target.Options.EmitCallSiteInfo &&!Target.Options.MatchIndirectCall)
+  if (!Target.Options.EmitCallSiteInfo)
     return CallSitesInfo.end();
   return CallSitesInfo.find(MI);
 }
@@ -1274,13 +1274,9 @@ bool MachineFunction::shouldUseDebugInstrRef() const {
   return false;
 }
 
-bool MachineFunction::useDebugInstrRef() const {
-  return UseDebugInstrRef;
-}
+bool MachineFunction::useDebugInstrRef() const { return UseDebugInstrRef; }
 
-void MachineFunction::setUseDebugInstrRef(bool Use) {
-  UseDebugInstrRef = Use;
-}
+void MachineFunction::setUseDebugInstrRef(bool Use) { UseDebugInstrRef = Use; }
 
 // Use one million as a high / reserved number.
 const unsigned MachineFunction::DebugOperandMemNumber = 1000000;
@@ -1334,10 +1330,10 @@ unsigned MachineJumpTableInfo::getEntryAlignment(const DataLayout &TD) const {
 
 /// Create a new jump table entry in the jump table info.
 unsigned MachineJumpTableInfo::createJumpTableIndex(
-                               const std::vector<MachineBasicBlock*> &DestBBs) {
+    const std::vector<MachineBasicBlock *> &DestBBs) {
   assert(!DestBBs.empty() && "Cannot create an empty jump table!");
   JumpTables.push_back(MachineJumpTableEntry(DestBBs));
-  return JumpTables.size()-1;
+  return JumpTables.size() - 1;
 }
 
 /// If Old is the target of any jump tables, update the jump tables to branch
@@ -1379,7 +1375,8 @@ bool MachineJumpTableInfo::ReplaceMBBInJumpTable(unsigned Idx,
 }
 
 void MachineJumpTableInfo::print(raw_ostream &OS) const {
-  if (JumpTables.empty()) return;
+  if (JumpTables.empty())
+    return;
 
   OS << "Jump Tables:\n";
 
@@ -1445,7 +1442,7 @@ MachineConstantPoolEntry::getSectionKind(const DataLayout *DL) const {
 MachineConstantPool::~MachineConstantPool() {
   // A constant may be a member of both Constants and MachineCPVsSharingEntries,
   // so keep track of which we've deleted to avoid double deletions.
-  DenseSet<MachineConstantPoolValue*> Deleted;
+  DenseSet<MachineConstantPoolValue *> Deleted;
   for (const MachineConstantPoolEntry &C : Constants)
     if (C.isMachineConstantPoolEntry()) {
       Deleted.insert(C.Val.MachineCPVal);
@@ -1462,11 +1459,13 @@ MachineConstantPool::~MachineConstantPool() {
 static bool CanShareConstantPoolEntry(const Constant *A, const Constant *B,
                                       const DataLayout &DL) {
   // Handle the trivial case quickly.
-  if (A == B) return true;
+  if (A == B)
+    return true;
 
   // If they have the same type but weren't the same constant, quickly
   // reject them.
-  if (A->getType() == B->getType()) return false;
+  if (A->getType() == B->getType())
+    return false;
 
   // We can't handle structs or arrays.
   if (isa<StructType>(A->getType()) || isa<ArrayType>(A->getType()) ||
@@ -1480,7 +1479,7 @@ static bool CanShareConstantPoolEntry(const Constant *A, const Constant *B,
 
   bool ContainsUndefOrPoisonA = A->containsUndefOrPoisonElement();
 
-  Type *IntTy = IntegerType::get(A->getContext(), StoreSize*8);
+  Type *IntTy = IntegerType::get(A->getContext(), StoreSize * 8);
 
   // Try constant folding a bitcast of both instructions to an integer.  If we
   // get two identical ConstantInt's, then we are good to share them.  We use
@@ -1513,7 +1512,8 @@ static bool CanShareConstantPoolEntry(const Constant *A, const Constant *B,
 /// User must specify the log2 of the minimum required alignment for the object.
 unsigned MachineConstantPool::getConstantPoolIndex(const Constant *C,
                                                    Align Alignment) {
-  if (Alignment > PoolAlignment) PoolAlignment = Alignment;
+  if (Alignment > PoolAlignment)
+    PoolAlignment = Alignment;
 
   // Check to see if we already have this constant.
   //
@@ -1527,12 +1527,13 @@ unsigned MachineConstantPool::getConstantPoolIndex(const Constant *C,
     }
 
   Constants.push_back(MachineConstantPoolEntry(C, Alignment));
-  return Constants.size()-1;
+  return Constants.size() - 1;
 }
 
 unsigned MachineConstantPool::getConstantPoolIndex(MachineConstantPoolValue *V,
                                                    Align Alignment) {
-  if (Alignment > PoolAlignment) PoolAlignment = Alignment;
+  if (Alignment > PoolAlignment)
+    PoolAlignment = Alignment;
 
   // Check to see if we already have this constant.
   //
@@ -1544,11 +1545,12 @@ unsigned MachineConstantPool::getConstantPoolIndex(MachineConstantPoolValue *V,
   }
 
   Constants.push_back(MachineConstantPoolEntry(V, Alignment));
-  return Constants.size()-1;
+  return Constants.size() - 1;
 }
 
 void MachineConstantPool::print(raw_ostream &OS) const {
-  if (Constants.empty()) return;
+  if (Constants.empty())
+    return;
 
   OS << "Constant Pool:\n";
   for (unsigned i = 0, e = Constants.size(); i != e; ++i) {

@@ -2644,15 +2644,12 @@ void CodeGenModule::SetLLVMFunctionAttributesForDefinition(const Decl *D,
 
   // In the cross-dso CFI mode with canonical jump tables, we want !type
   // attributes on definitions only.
-  if ((CodeGenOpts.SanitizeCfiCrossDso &&
-       CodeGenOpts.SanitizeCfiCanonicalJumpTables) ||
-      CodeGenOpts.MatchIndirectCall) {
-    if (auto *FD = dyn_cast<FunctionDecl>(D)) {
-      // Skip available_externally functions. They won't be codegen'ed in the
-      // current module anyway.
-      if (getContext().GetGVALinkageForFunction(FD) != GVA_AvailableExternally)
-        CreateFunctionTypeMetadataForIcall(FD, F);
-    }
+
+  if (auto *FD = dyn_cast<FunctionDecl>(D)) {
+    // Skip available_externally functions. They won't be codegen'ed in the
+    // current module anyway.
+    if (getContext().GetGVALinkageForFunction(FD) != GVA_AvailableExternally)
+      CreateFunctionTypeMetadataForIcall(FD, F);
   }
 
   // Emit type metadata on member functions for member function pointer checks.
@@ -2852,8 +2849,7 @@ void CodeGenModule::CreateFunctionTypeMetadataForIcall(const FunctionDecl *FD,
                                                        llvm::Function *F) {
 
   bool EmittedMDIdGeneralized = false;
-  if (CodeGenOpts.MatchIndirectCall &&
-      (!F->hasLocalLinkage() ||
+  if ((!F->hasLocalLinkage() ||
        F->getFunction().hasAddressTaken(nullptr, /*IgnoreCallbackUses=*/true,
                                         /*IgnoreAssumeLikeCalls=*/true,
                                         /*IgnoreLLVMUsed=*/false))) {
@@ -2888,7 +2884,7 @@ void CodeGenModule::CreateFunctionTypeMetadataForIcall(const FunctionDecl *FD,
 void CodeGenModule::CreateFunctionTypeMetadataForIcall(const QualType &QT,
                                                        llvm::CallBase *CB) {
   // Only if needed for call graph section and only for indirect calls.
-  if (!CodeGenOpts.MatchIndirectCall || !CB || !CB->isIndirectCall())
+  if (!CB || !CB->isIndirectCall())
     return;
 
   auto *MD = CreateMetadataIdentifierGeneralized(QT);
@@ -3081,10 +3077,7 @@ void CodeGenModule::SetFunctionAttributes(GlobalDecl GD, llvm::Function *F,
   // is handled with better precision by the receiving DSO. But if jump tables
   // are non-canonical then we need type metadata in order to produce the local
   // jump table.
-  if (!CodeGenOpts.SanitizeCfiCrossDso ||
-      !CodeGenOpts.SanitizeCfiCanonicalJumpTables ||
-      CodeGenOpts.MatchIndirectCall)
-    CreateFunctionTypeMetadataForIcall(FD, F);
+  CreateFunctionTypeMetadataForIcall(FD, F);
 
   if (LangOpts.Sanitize.has(SanitizerKind::KCFI))
     setKCFIType(FD, F);

@@ -169,7 +169,7 @@ class EmitAssemblyHelper {
   std::unique_ptr<llvm::ToolOutputFile> openOutputFile(StringRef Path) {
     std::error_code EC;
     auto F = std::make_unique<llvm::ToolOutputFile>(Path, EC,
-                                                     llvm::sys::fs::OF_None);
+                                                    llvm::sys::fs::OF_None);
     if (EC) {
       Diags.Report(diag::err_fe_unable_to_open_output) << Path << EC.message();
       F.reset();
@@ -456,7 +456,6 @@ static bool initTargetOptions(DiagnosticsEngine &Diags,
   Options.StackUsageOutput = CodeGenOpts.StackUsageOutput;
   Options.EmitAddrsig = CodeGenOpts.Addrsig;
   Options.ForceDwarfFrameSection = CodeGenOpts.ForceDwarfFrameSection;
-  Options.MatchIndirectCall = CodeGenOpts.MatchIndirectCall;
   Options.EmitCallSiteInfo = CodeGenOpts.EmitCallSiteInfo;
   Options.EnableAIXExtendedAltivecABI = LangOpts.EnableAIXExtendedAltivecABI;
   Options.XRayFunctionIndex = CodeGenOpts.XRayFunctionIndex;
@@ -576,8 +575,7 @@ static void setCommandLineOpts(const CodeGenOptions &CodeGenOpts) {
   // FIXME: The command line parser below is not thread-safe and shares a global
   // state, so this call might crash or overwrite the options of another Clang
   // instance in the same process.
-  llvm::cl::ParseCommandLineOptions(BackendArgs.size() - 1,
-                                    BackendArgs.data());
+  llvm::cl::ParseCommandLineOptions(BackendArgs.size() - 1, BackendArgs.data());
 }
 
 void EmitAssemblyHelper::CreateTargetMachine(bool MustCreateTM) {
@@ -811,7 +809,6 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     std::unique_ptr<llvm::ToolOutputFile> &ThinLinkOS, BackendConsumer *BC) {
   std::optional<PGOOptions> PGOOpt;
 
-
   if (CodeGenOpts.hasProfileIRInstr())
     // -fprofile-generate.
     PGOOpt = PGOOptions(
@@ -935,11 +932,12 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     break;
   }
 
-    //   // Register with correct lambda signature
-    // PB.registerOptimizerLastEPCallback(
-    //     [](ModulePassManager &MPM, OptimizationLevel Level, ThinOrFullLTOPhase Phase) {
-    //         MPM.addPass(InterproceduralGraphPass());
-    //     });
+  //   // Register with correct lambda signature
+  // PB.registerOptimizerLastEPCallback(
+  //     [](ModulePassManager &MPM, OptimizationLevel Level, ThinOrFullLTOPhase
+  //     Phase) {
+  //         MPM.addPass(InterproceduralGraphPass());
+  //     });
 
   // Enable verify-debuginfo-preserve-each for new PM.
   DebugifyEachInstrumentation Debugify;
@@ -987,7 +985,6 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
 
   if (CodeGenOpts.VerifyModule)
     MPM.addPass(VerifierPass());
-  
 
   // MPM.addPass(InterproceduralGraphPass());
 
@@ -1000,12 +997,11 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     const bool PrepareForLTO = CodeGenOpts.PrepareForLTO;
 
     if (LangOpts.ObjCAutoRefCount) {
-      PB.registerPipelineStartEPCallback(
-          [](ModulePassManager &MPM, OptimizationLevel Level) {
-            if (Level != OptimizationLevel::O0)
-              MPM.addPass(
-                  createModuleToFunctionPassAdaptor(ObjCARCExpandPass()));
-          });
+      PB.registerPipelineStartEPCallback([](ModulePassManager &MPM,
+                                            OptimizationLevel Level) {
+        if (Level != OptimizationLevel::O0)
+          MPM.addPass(createModuleToFunctionPassAdaptor(ObjCARCExpandPass()));
+      });
       PB.registerPipelineEarlySimplificationEPCallback(
           [](ModulePassManager &MPM, OptimizationLevel Level,
              ThinOrFullLTOPhase) {
@@ -1037,26 +1033,26 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     // Register callbacks to schedule sanitizer passes at the appropriate part
     // of the pipeline.
     if (LangOpts.Sanitize.has(SanitizerKind::LocalBounds))
-      PB.registerScalarOptimizerLateEPCallback(
-          [this](FunctionPassManager &FPM, OptimizationLevel Level) {
-            BoundsCheckingPass::ReportingMode Mode;
-            bool Merge = CodeGenOpts.SanitizeMergeHandlers.has(
-                SanitizerKind::LocalBounds);
+      PB.registerScalarOptimizerLateEPCallback([this](FunctionPassManager &FPM,
+                                                      OptimizationLevel Level) {
+        BoundsCheckingPass::ReportingMode Mode;
+        bool Merge =
+            CodeGenOpts.SanitizeMergeHandlers.has(SanitizerKind::LocalBounds);
 
-            if (CodeGenOpts.SanitizeTrap.has(SanitizerKind::LocalBounds)) {
-              Mode = BoundsCheckingPass::ReportingMode::Trap;
-            } else if (CodeGenOpts.SanitizeMinimalRuntime) {
-              Mode = CodeGenOpts.SanitizeRecover.has(SanitizerKind::LocalBounds)
-                         ? BoundsCheckingPass::ReportingMode::MinRuntime
-                         : BoundsCheckingPass::ReportingMode::MinRuntimeAbort;
-            } else {
-              Mode = CodeGenOpts.SanitizeRecover.has(SanitizerKind::LocalBounds)
-                         ? BoundsCheckingPass::ReportingMode::FullRuntime
-                         : BoundsCheckingPass::ReportingMode::FullRuntimeAbort;
-            }
-            BoundsCheckingPass::BoundsCheckingOptions Options(Mode, Merge);
-            FPM.addPass(BoundsCheckingPass(Options));
-          });
+        if (CodeGenOpts.SanitizeTrap.has(SanitizerKind::LocalBounds)) {
+          Mode = BoundsCheckingPass::ReportingMode::Trap;
+        } else if (CodeGenOpts.SanitizeMinimalRuntime) {
+          Mode = CodeGenOpts.SanitizeRecover.has(SanitizerKind::LocalBounds)
+                     ? BoundsCheckingPass::ReportingMode::MinRuntime
+                     : BoundsCheckingPass::ReportingMode::MinRuntimeAbort;
+        } else {
+          Mode = CodeGenOpts.SanitizeRecover.has(SanitizerKind::LocalBounds)
+                     ? BoundsCheckingPass::ReportingMode::FullRuntime
+                     : BoundsCheckingPass::ReportingMode::FullRuntimeAbort;
+        }
+        BoundsCheckingPass::BoundsCheckingOptions Options(Mode, Merge);
+        FPM.addPass(BoundsCheckingPass(Options));
+      });
 
     // Don't add sanitizers if we are here from ThinLTO PostLink. That already
     // done on PreLink stage.
@@ -1126,8 +1122,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
           if (!ThinLinkOS)
             return;
         }
-        MPM.addPass(ThinLTOBitcodeWriterPass(
-            *OS, ThinLinkOS ? &ThinLinkOS->os() : nullptr));
+        MPM.addPass(ThinLTOBitcodeWriterPass(*OS, ThinLinkOS ? &ThinLinkOS->os()
+                                                             : nullptr));
       } else if (Action == Backend_EmitLL) {
         MPM.addPass(PrintModulePass(*OS, "", CodeGenOpts.EmitLLVMUseLists,
                                     /*EmitLTOSummary=*/true));
@@ -1251,13 +1247,14 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
     DwoOS->keep();
 }
 
-static void runThinLTOBackend(
-    DiagnosticsEngine &Diags, ModuleSummaryIndex *CombinedIndex,
-    llvm::Module *M, const HeaderSearchOptions &HeaderOpts,
-    const CodeGenOptions &CGOpts, const clang::TargetOptions &TOpts,
-    const LangOptions &LOpts, std::unique_ptr<raw_pwrite_stream> OS,
-    std::string SampleProfile, std::string ProfileRemapping,
-    BackendAction Action) {
+static void
+runThinLTOBackend(DiagnosticsEngine &Diags, ModuleSummaryIndex *CombinedIndex,
+                  llvm::Module *M, const HeaderSearchOptions &HeaderOpts,
+                  const CodeGenOptions &CGOpts,
+                  const clang::TargetOptions &TOpts, const LangOptions &LOpts,
+                  std::unique_ptr<raw_pwrite_stream> OS,
+                  std::string SampleProfile, std::string ProfileRemapping,
+                  BackendAction Action) {
   DenseMap<StringRef, DenseMap<GlobalValue::GUID, GlobalValueSummary *>>
       ModuleToDefinedGVSummaries;
   CombinedIndex->collectDefinedGVSummariesPerModule(ModuleToDefinedGVSummaries);
@@ -1379,7 +1376,7 @@ void clang::EmitBackendOutput(
                       .moveInto(CombinedIndex)) {
       logAllUnhandledErrors(std::move(E), errs(),
                             "Error loading index file '" +
-                            CGOpts.ThinLTOIndexFile + "': ");
+                                CGOpts.ThinLTOIndexFile + "': ");
       return;
     }
 
