@@ -48,17 +48,40 @@ Labels are stored as symbols in the generated object files and binaries:
 build/bin/llvm-nm -a example | grep -- '-t-'
 ```
 
-Example labels:
+Label format:
 
 ```text
-main.c-1-0-0-0-0-t-0-0-0-0-0-type
-main.c-0-0-1-54cb21d76569286d-0-t-0-0-0-0-0-type
-tailcall.c-0-1-0-54cb21d76569286d-0-t-0-0-0-0-0-type
-main.c-0-0-0-0-0-t-0-0-0-1-48c0a6bd1ef5201f-54cb21d76569286d
+module-JTSourceID-ITailCallID-ICallSiteID-CalleeTypeID-DTailCallID-t-JTTargetID-JTEntryID-ReturnID-FunctionEntryID-FunctionHash-FunctionTypeID
 ```
 
-These examples represent a jump-table source, an indirect-call site, an
-indirect-tail-call site, and a compatible function entry.
+The fields separated by `-` are:
+
+| Field | Example value | Meaning |
+| --- | --- | --- |
+| `module` | `main.c` | source module or file name |
+| `JTSourceID` | `0` | not a jump-table source |
+| `ITailCallID` | `0` | not an indirect tail call |
+| `ICallSiteID` | `1` | the first indirect-call site |
+| `CalleeTypeID` | `54cb21d76569286d` | expected callee type hash |
+| `DTailCallID` | `0` | not a direct tail call |
+| `t` | `t` | separator between source and target fields |
+| `JTTargetID` | `0` | not a jump-table entry |
+| `JTEntryID` | `0` | no jump-table entry index |
+| `ReturnID` | `0` | not a return label |
+| `FunctionEntryID` | `0` | not a function-entry label |
+| `FunctionHash` | `0` | no function hash attached |
+| `FunctionTypeID` | `type` | default placeholder; no function type attached |
+
+`0` means that a field does not apply to this label. IDs start from `1`;
+type and function hashes are hexadecimal values. `type` is the default
+placeholder when no function type is attached.
+
+Example of an indirect-call label (`ICallSiteID=1`) and its instruction:
+
+```text
+main.c-0-0-1-54cb21d76569286d-0-t-0-0-0-0-0-type
+401257: ff d0    call *%rax
+```
 
 ## Static GT extraction
 
