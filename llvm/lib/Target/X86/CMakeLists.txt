@@ -23,6 +23,7 @@ tablegen(LLVM X86GenFoldTables.inc -gen-x86-fold-tables -asmwriternum=1)
 add_public_tablegen_target(X86CommonTableGen)
 
 set(sources
+  X86MatchJumptablePass.cpp
   X86ArgumentStackSlotRebase.cpp
   X86AsmPrinter.cpp
   X86AvoidTrailingCall.cpp
@@ -39,6 +40,7 @@ set(sources
   X86FastPreTileConfig.cpp
   X86FastTileConfig.cpp
   X86PreTileConfig.cpp
+  X86LabelIndirectCallTarget.cpp
   X86ExpandPseudo.cpp
   X86FastISel.cpp
   X86FixupBWInsts.cpp

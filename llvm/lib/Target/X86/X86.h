@@ -54,6 +54,8 @@ FunctionPass *createX86IndirectBranchTrackingPass();
 /// This will prevent a stall when returning on the Atom.
 FunctionPass *createX86PadShortFunctions();
 
+FunctionPass *createX86MatchJumptablePass();
+
 /// Return a pass that selectively replaces certain instructions (like add,
 /// sub, inc, dec, some shifts, and some multiplies) by equivalent LEA
 /// instructions, in order to eliminate execution delays in some processors.
@@ -99,6 +101,8 @@ FunctionPass *createX86PreTileConfigPass();
 
 /// Return a pass that lower the tile copy instruction.
 FunctionPass *createX86LowerTileCopyPass();
+
+ FunctionPass *createX86LabelIndirectCallTargetPass();
 
 /// Return a pass that inserts int3 at the end of the function if it ends with a
 /// CALL instruction. The pass does the same for each funclet as well. This

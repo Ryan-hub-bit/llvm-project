@@ -4318,6 +4318,8 @@ public:
 
 /// FunctionType - C99 6.7.5.3 - Function Declarators.  This is the common base
 /// class of FunctionNoProtoType and FunctionProtoType.
+//The FunctionType class in Clang represents the type of a function and is derived from the base Type class. 
+//This is used to describe the signature of a function, including its return type, parameter types, and other attributes like calling convention or exception specifications
 class FunctionType : public Type {
   // The type returned by the function.
   QualType ResultType;

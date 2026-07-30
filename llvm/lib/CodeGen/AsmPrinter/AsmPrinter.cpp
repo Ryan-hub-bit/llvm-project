@@ -2863,6 +2863,7 @@ void AsmPrinter::emitJumpTableInfo() {
   // Pick the directive to use to print the jump table entries, and switch to
   // the appropriate section.
   const Function &F = MF->getFunction();
+  // errs() << "F" << F.getName() << "\n";
   const TargetLoweringObjectFile &TLOF = getObjFileLowering();
   bool JTInDiffSection = !TLOF.shouldPutJumpTableInFunctionSection(
       MJTI->getEntryKind() == MachineJumpTableInfo::EK_LabelDifference32 ||
@@ -2883,27 +2884,34 @@ void AsmPrinter::emitJumpTableInfo() {
 
   for (unsigned JTI = 0, e = JT.size(); JTI != e; ++JTI) {
     const std::vector<MachineBasicBlock*> &JTBBs = JT[JTI].MBBs;
+    
 
     // If this jump table was deleted, ignore it.
     if (JTBBs.empty()) continue;
+    // errs() <<"test0" << "\n";
 
     // For the EK_LabelDifference32 entry, if using .set avoids a relocation,
     /// emit a .set directive for each unique entry.
     if (MJTI->getEntryKind() == MachineJumpTableInfo::EK_LabelDifference32 &&
         MAI->doesSetDirectiveSuppressReloc()) {
+      //  errs() << "test1" <<"\n";
       SmallPtrSet<const MachineBasicBlock*, 16> EmittedSets;
       const TargetLowering *TLI = MF->getSubtarget().getTargetLowering();
       const MCExpr *Base = TLI->getPICJumpTableRelocBaseExpr(MF,JTI,OutContext);
       for (const MachineBasicBlock *MBB : JTBBs) {
         if (!EmittedSets.insert(MBB).second)
           continue;
-
+        // errs() <<"test2" <<"\n";
         // .set LJTSet, LBB32-base
+        MCSymbol *MCsy = MBB->getSymbol();
+        MCSymbol *JTsetsy = GetJTSetSymbol(JTI, MBB->getNumber());
         const MCExpr *LHS =
-          MCSymbolRefExpr::create(MBB->getSymbol(), OutContext);
-        OutStreamer->emitAssignment(GetJTSetSymbol(JTI, MBB->getNumber()),
+          MCSymbolRefExpr::create(MCsy, OutContext);
+        OutStreamer->emitAssignment(JTsetsy,
                                     MCBinaryExpr::createSub(LHS, Base,
                                                             OutContext));
+          // errs() << "Symbol" << MCsy->getName() << "\n";
+          // errs() << "JTSymbol" << JTsetsy->getName() << "\n";
       }
     }
 
@@ -2922,8 +2930,10 @@ void AsmPrinter::emitJumpTableInfo() {
 
     // Defer MCAssembler based constant folding due to a performance issue. The
     // label differences will be evaluated at write time.
-    for (const MachineBasicBlock *MBB : JTBBs)
-      emitJumpTableEntry(*MJTI, MBB, JTI);
+    for (const MachineBasicBlock *MBB : JTBBs){
+      // errs() <<"test6" << "\n";
+      emitJumpTableEntry(MJTI, MBB, JTI);
+    }
   }
 
   if (EmitJumpTableSizesSection)
@@ -2988,7 +2998,8 @@ void AsmPrinter::emitJumpTableEntry(const MachineJumpTableInfo &MJTI,
                                     unsigned UID) const {
   assert(MBB && MBB->getNumber() >= 0 && "Invalid basic block");
   const MCExpr *Value = nullptr;
-  switch (MJTI.getEntryKind()) {
+  // errs() << "EntryKind:" << MJTI->getEntryKind() <<"\n";
+  switch (MJTI->getEntryKind()) {
   case MachineJumpTableInfo::EK_Inline:
     llvm_unreachable("Cannot emit EK_Inline jump table entry");
   case MachineJumpTableInfo::EK_Custom32:
@@ -3027,9 +3038,10 @@ void AsmPrinter::emitJumpTableEntry(const MachineJumpTableInfo &MJTI,
     // If the .set directive avoids relocations, this is emitted as:
     //      .set L4_5_set_123, LBB123 - LJTI1_2
     //      .word L4_5_set_123
-    if (MJTI.getEntryKind() == MachineJumpTableInfo::EK_LabelDifference32 &&
+      MCSymbol *JTsetsy = GetJTSetSymbol(UID, MBB->getNumber());
+    if (MJTI->getEntryKind() == MachineJumpTableInfo::EK_LabelDifference32 &&
         MAI->doesSetDirectiveSuppressReloc()) {
-      Value = MCSymbolRefExpr::create(GetJTSetSymbol(UID, MBB->getNumber()),
+      Value = MCSymbolRefExpr::create(JTsetsy,
                                       OutContext);
       break;
     }
