@@ -5,8 +5,7 @@ This repository is a research fork of the official
 
 It extends Clang and the LLVM X86 backend to insert type-aware labels into
 ELF binaries. These labels provide static ground truth for control-flow graph
-analysis. Label generation is enabled by default and does not require the old
-`-fmatch-indirect-call` switch.
+analysis.
 
 ## Collected edges
 
@@ -23,9 +22,14 @@ Indirect-call and indirect-tail-call targets are matched using the type ID
 encoded in the call-site and function-entry labels. Direct tail-call labels are
 also emitted for return-path analysis.
 
-## Build
+## Usage
+
+Clone and build this LLVM fork:
 
 ```bash
+git clone git@github.com:Ryan-hub-bit/llvm-project.git
+cd llvm-project
+
 cmake -S llvm -B build -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
   -DLLVM_ENABLE_PROJECTS=clang \
@@ -34,10 +38,34 @@ cmake -S llvm -B build -G Ninja \
 cmake --build build --target clang llvm-nm -- -j$(nproc)
 ```
 
-Compile a program with the instrumented Clang:
+Use the newly built Clang instead of the compiler currently selected in this
+shell:
 
 ```bash
-build/bin/clang -O2 -g example.c -o example
+export LLVM_GT_BUILD="$(pwd)/build"
+export PATH="$LLVM_GT_BUILD/bin:$PATH"
+export CC="$LLVM_GT_BUILD/bin/clang"
+export CXX="$LLVM_GT_BUILD/bin/clang++"
+
+command -v clang
+clang --version
+```
+
+Compile a single source file:
+
+```bash
+"$CC" -O2 -g example.c -o example
+```
+
+Compile an existing CMake project in a new build directory:
+
+```bash
+cmake -S /path/to/project -B /path/to/project-build-gt \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_C_COMPILER="$CC" \
+  -DCMAKE_CXX_COMPILER="$CXX"
+
+cmake --build /path/to/project-build-gt -- -j$(nproc)
 ```
 
 ## Label examples
@@ -59,22 +87,22 @@ The fields separated by `-` are:
 | Field | Example value | Meaning |
 | --- | --- | --- |
 | `module` | `main.c` | source module or file name |
-| `JTSourceID` | `0` | not a jump-table source |
-| `ITailCallID` | `0` | not an indirect tail call |
-| `ICallSiteID` | `1` | the first indirect-call site |
-| `CalleeTypeID` | `54cb21d76569286d` | expected callee type hash |
-| `DTailCallID` | `0` | not a direct tail call |
+| `JTSourceID` | `0` | `0`: not a jump-table source; `1+`: jump-table source ID |
+| `ITailCallID` | `0` | `0`: not an indirect tail call; `1+`: indirect tail-call site ID |
+| `ICallSiteID` | `1` | `0`: not an indirect call; `1`: first call site; `2+`: later sites |
+| `CalleeTypeID` | `54cb21d76569286d` | `0`: no callee type; nonzero hex: expected callee type hash |
+| `DTailCallID` | `0` | `0`: not a direct tail call; `1+`: direct tail-call site ID |
 | `t` | `t` | separator between source and target fields |
-| `JTTargetID` | `0` | not a jump-table entry |
-| `JTEntryID` | `0` | no jump-table entry index |
-| `ReturnID` | `0` | not a return label |
-| `FunctionEntryID` | `0` | not a function-entry label |
-| `FunctionHash` | `0` | no function hash attached |
-| `FunctionTypeID` | `type` | default placeholder; no function type attached |
+| `JTTargetID` | `0` | `0`: not an entry; `1+`: ID of the source jump table |
+| `JTEntryID` | `0` | `0`: no entry; `1`: first entry; `2+`: later entries |
+| `ReturnID` | `0` | `0`: not a return; `1`: first return; `2+`: later returns |
+| `FunctionEntryID` | `0` | `0`: not a function entry; `1`: function entry |
+| `FunctionHash` | `0` | `0`: no function hash; nonzero hex: function-name hash |
+| `FunctionTypeID` | `type` | `type`: no function type; hex value: function type hash |
 
-`0` means that a field does not apply to this label. IDs start from `1`;
-type and function hashes are hexadecimal values. `type` is the default
-placeholder when no function type is attached.
+For ID fields, `0` always means absent or not applicable. Numbering starts at
+`1`, so `1` identifies the first site or entry and larger values identify later
+ones. `FunctionEntryID` is a flag: `0` means no and `1` means yes.
 
 Example of an indirect-call label (`ICallSiteID=1`) and its instruction:
 
