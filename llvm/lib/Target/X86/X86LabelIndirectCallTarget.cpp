@@ -79,7 +79,7 @@ static uint64_t extractNumericCGTypeId(const Function &F) {
     for (const auto &Type : Types) {
         if (Type->getNumOperands() == 2 && isa<MDString>(Type->getOperand(1))) {
             auto *TMDS = cast<MDString>(Type->getOperand(1));
-            if (TMDS->getString().ends_with("generalized")) {
+            if (TMDS->getString().ends_with(".generalized")) {
                 MDGeneralizedTypeId = TMDS;
                 break;
             }

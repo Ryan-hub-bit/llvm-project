@@ -590,21 +590,28 @@ public:
   // If operand bundle is not available, try to get it from metadata
   if (!Opt.has_value()) {
     if (MDNode *TypeMD = CB.getMetadata(LLVMContext::MD_type)) {
-      if (TypeMD->getNumOperands() > 0) {
-        if (auto *TypeIdStr = dyn_cast<MDString>(TypeMD->getOperand(0))) {
-          // Process the metadata similarly to the bundle case
-          if (TypeIdStr->getString().ends_with(".generalized")) {
-            uint64_t TypeIdVal = llvm::MD5Hash(TypeIdStr->getString());
-            IntegerType *Int64Ty = Type::getInt64Ty(CB.getContext());
-            TypeId = llvm::ConstantInt::get(Int64Ty, TypeIdVal, /*IsSigned=*/false);
-            errs() << "get typeID from Metadata\n";
-            return;
-          } else {
-            errs() << "warning: invalid type identifier in metadata - missing .generalized suffix\n";
-            return;
+      // Function type metadata is conventionally encoded as
+      // !{i64 0, !"...generalized"}, so the MDString is not necessarily the
+      // first operand.  Scan all operands to support both that form and a
+      // metadata node containing only the identifier string.
+      MDString *TypeIdStr = nullptr;
+      for (const MDOperand &Operand : TypeMD->operands()) {
+        if (auto *Candidate = dyn_cast<MDString>(Operand.get())) {
+          if (Candidate->getString().ends_with(".generalized")) {
+            TypeIdStr = Candidate;
+            break;
           }
         }
       }
+      if (TypeIdStr) {
+        uint64_t TypeIdVal = llvm::MD5Hash(TypeIdStr->getString());
+        IntegerType *Int64Ty = Type::getInt64Ty(CB.getContext());
+        TypeId = llvm::ConstantInt::get(Int64Ty, TypeIdVal, /*IsSigned=*/false);
+        errs() << "get typeID from Metadata\n";
+        return;
+      }
+      errs() << "warning: invalid type identifier in metadata - missing .generalized suffix\n";
+      return;
     }
     
     errs() << "warning: cannot find indirect call type information (neither bundle nor metadata) for call graph section\n";
