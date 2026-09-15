@@ -12,6 +12,7 @@
 #include <sstream>
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/PassRegistry.h"
 #include "llvm/Pass.h"
 #include "llvm/MC/MCContext.h"
@@ -40,6 +41,12 @@ using namespace llvm;
 #define DEBUG_TYPE "x86-label-indirect-call"
 
 namespace llvm {
+
+enum FunctionLabelKind : int {
+    NoFunctionLabel = 0,
+    IndirectTargetFunction = 1,
+    SameTypeNonAddressTakenFunction = 2,
+};
 
 char X86LabelIndirectCallTarget::ID = 0;
 
@@ -83,6 +90,39 @@ static uint64_t extractNumericCGTypeId(const Function &F) {
     }
     // Directly return the hash value
     return llvm::MD5Hash(MDGeneralizedTypeId->getString());
+}
+
+/// Extracts the generalized numeric type identifier attached to an indirect
+/// call. Prefer the operand bundle emitted by Clang, but also accept the call
+/// metadata form used by this tree.
+static uint64_t extractNumericCGTypeId(const CallBase &CB) {
+    if (!CB.isIndirectCall())
+        return 0;
+
+    auto HashGeneralizedTypeId = [](Metadata *MD) -> uint64_t {
+        auto *TypeId = dyn_cast_or_null<MDString>(MD);
+        if (!TypeId || !TypeId->getString().ends_with(".generalized"))
+            return 0;
+        return llvm::MD5Hash(TypeId->getString());
+    };
+
+    if (auto TypeBundle = CB.getOperandBundle(LLVMContext::OB_type)) {
+        if (TypeBundle->Inputs.size() == 1) {
+            if (auto *MAV =
+                    dyn_cast<MetadataAsValue>(TypeBundle->Inputs.front().get()))
+                if (uint64_t TypeId =
+                        HashGeneralizedTypeId(MAV->getMetadata()))
+                    return TypeId;
+        }
+    }
+
+    if (MDNode *TypeMD = CB.getMetadata(LLVMContext::MD_type)) {
+        for (const MDOperand &Operand : TypeMD->operands())
+            if (uint64_t TypeId = HashGeneralizedTypeId(Operand.get()))
+                return TypeId;
+    }
+
+    return 0;
 }
 // modifier-jumptableindex-tailcallID-callsiteID-calleeTypeID-DtailcallID-t-jumptableIndex-jumpEntryIndex-returnID-FunctionID-functionhash-functionTypeID
 static const std::string& initializeLabel(StringRef moIdentifier) {
@@ -327,6 +367,27 @@ std::string modifyFunctionStarting(const std::string& originalStr, int value1, u
     return result;
 }
 
+bool X86LabelIndirectCallTarget::doInitialization(Module &M) {
+    IndirectCallTypeIds.clear();
+
+    // Collect callsite types before visiting any MachineFunction. Otherwise a
+    // same-typed function would only be found when its machine function happens
+    // to be emitted after the caller.
+    for (const Function &F : M) {
+        for (const BasicBlock &BB : F) {
+            for (const Instruction &I : BB) {
+                const auto *CB = dyn_cast<CallBase>(&I);
+                if (!CB)
+                    continue;
+                if (uint64_t TypeId = extractNumericCGTypeId(*CB))
+                    IndirectCallTypeIds.insert(TypeId);
+            }
+        }
+    }
+
+    return false;
+}
+
 bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF) {
 
     // jump table label first
@@ -545,19 +606,21 @@ bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF) {
                                            /*IgnoreCallbackUses=*/true,
                                            /*IgnoreAssumeLikeCalls=*/true,
                                            /*IgnoreLLVMUsed=*/false);
+    uint64_t FunctionTypeId = extractNumericCGTypeId(CF);
+    bool HasIndirectCallType =
+        FunctionTypeId != 0 && IndirectCallTypeIds.count(FunctionTypeId);
     uint64_t TypeIdVal = 0;
-    
+    FunctionLabelKind FunctionKind = NoFunctionLabel;
+
     if (IsIndirectTarget) {
-        TypeIdVal = extractNumericCGTypeId(CF);
-    }
-    
-    if (TypeIdVal != 0) {
-        bool Inserted = TypeIdSet.insert(TypeIdVal).second;
-        if (Inserted) {
-            // LLVM_DEBUG(dbgs() << "inserted" << "\n");
-        }
-    } else {
-        // LLVM_DEBUG(dbgs() << "func name: " << F.getName() << ": TypeIdVal == 0" << "\n");
+        // Preserve the original indirect-target label kind.
+        TypeIdVal = FunctionTypeId;
+        FunctionKind = IndirectTargetFunction;
+    } else if (HasIndirectCallType) {
+        // A local, non-address-taken function whose type is used by an
+        // indirect call. Keep it distinguishable from a real indirect target.
+        TypeIdVal = FunctionTypeId;
+        FunctionKind = SameTypeNonAddressTakenFunction;
     }
 
     // First, process the function entry point
@@ -571,12 +634,12 @@ bool X86LabelIndirectCallTarget::runOnMachineFunction(MachineFunction &MF) {
                 MCSymbol *Label = MIptr->getPreInstrSymbol();
                 std::string labelName = Label->getName().str();
                 const std::string& labelRef = labelName;
-                std::string modifiedLabel = modifyFunctionStarting(labelRef, 1, FHash, TypeIdVal);
+                std::string modifiedLabel = modifyFunctionStarting(labelRef, FunctionKind, FHash, TypeIdVal);
                 MCSymbol *newLabel = MF.getContext().getOrCreateSymbol(modifiedLabel);
                 MIptr->setPreInstrSymbol(MF, newLabel);
             } else {
                 const std::string& labelName = initializeLabel(moIdentifier);
-                std::string modifiedLabel = modifyFunctionStarting(labelName, 1, FHash, TypeIdVal);
+                std::string modifiedLabel = modifyFunctionStarting(labelName, FunctionKind, FHash, TypeIdVal);
                 // errs() << "Function entry label: " << modifiedLabel << "\n";
                 MCSymbol *Label = MF.getContext().getOrCreateSymbol(modifiedLabel);
                 MIptr->setPreInstrSymbol(MF, Label);

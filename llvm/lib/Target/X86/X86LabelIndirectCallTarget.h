@@ -41,6 +41,7 @@ class X86LabelIndirectCallTarget : public MachineFunctionPass {
 public:
   static char ID;
   X86LabelIndirectCallTarget() : MachineFunctionPass(ID),callsiteID(1),tailcallID(1), Runcount(1), MaxEntrySize(0),DtailcallID(1){}
+  bool doInitialization(Module &M) override;
   bool doFinalization(Module &M) override;
   StringRef getPassName() const override;
   bool runOnMachineFunction(MachineFunction &MF) override;
@@ -61,7 +62,8 @@ private:
     int Runcount;
     int MaxEntrySize;
     int DtailcallID;
-    SmallSet<uint64_t, 16> TypeIdSet;  // Add this line
+    // Generalized type IDs used by indirect calls anywhere in the module.
+    SmallSet<uint64_t, 16> IndirectCallTypeIds;
       // Map to store labelName -> set of TypeIdVal
   StringMap<SmallSet<uint64_t, 4>> callsitetoTypeID;
   std::map<uint64_t, std::set<std::string>> typeIdtocallsitenext;
